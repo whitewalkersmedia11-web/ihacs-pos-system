@@ -6,6 +6,7 @@ import { Plus, Search, Edit2, Trash2, Smartphone, Package, Apple, Monitor, Table
 import { Phone, Accessory } from "@/data/types";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { offlineSync } from "@/lib/offlineSync";
 
 const formatLKR = (v: number) => `Rs. ${v.toLocaleString("en-LK")}`;
 
@@ -66,8 +67,21 @@ const Inventory = () => {
         ...a,
         lowStockThreshold: a.low_stock_threshold
       })) || []);
+
+      // Cache for offline
+      offlineSync.cacheInventory({ 
+        phones: phones.map(p => ({ ...p, addedDate: p.added_date })) || [], 
+        accessories: acc.map(a => ({ ...a, lowStockThreshold: a.low_stock_threshold })) || [] 
+      });
     } catch (error: any) {
-      toast.error("Failed to fetch inventory: " + error.message);
+      if (!navigator.onLine) {
+        toast.info("Offline: Showing cached stock");
+        const cached = offlineSync.getCachedInventory();
+        setPhoneList(cached.phones);
+        setAccList(cached.accessories);
+      } else {
+        toast.error("Failed to fetch inventory: " + error.message);
+      }
     } finally {
       setLoading(false);
     }

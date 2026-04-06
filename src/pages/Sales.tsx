@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { CartItemPOS, SaleTransaction, Phone, Accessory } from "@/data/types";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { offlineSync } from "@/lib/offlineSync";
 
 const formatLKR = (v: number) => `Rs. ${v.toLocaleString("en-LK")}`;
 
@@ -55,8 +56,18 @@ const Sales = () => {
 
       setDbPhones(phones || []);
       setDbAccessories(acc || []);
+      
+      // Cache data for offline access
+      offlineSync.cacheInventory({ phones: phones || [], accessories: acc || [] });
     } catch (error: any) {
-      toast.error("Failed to load products: " + error.message);
+      if (!navigator.onLine) {
+        toast.info("Using cached stock (Offline Mode)");
+        const cached = offlineSync.getCachedInventory();
+        setDbPhones(cached.phones);
+        setDbAccessories(cached.accessories);
+      } else {
+        toast.error("Failed to load products: " + error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -133,7 +144,7 @@ const Sales = () => {
     try {
       // 1. Record the Sale
       const totalCost = cart.reduce((sum, i) => sum + (i.cost * i.quantity), 0);
-      const { data: sale, error: saleError } = await supabase.from("sales").insert([{
+      const saleObj = {
         customer_name: customerName,
         customer_phone: customerPhone,
         subtotal,
@@ -143,10 +154,29 @@ const Sales = () => {
         trade_in_device: tradeInDevice,
         total,
         total_cost: totalCost,
-        payment_method: paymentMethod
-      }]).select().single();
+        payment_method: paymentMethod,
+        items: [...cart] // ENSURE items are captured correctly here
+      };
 
-      if (saleError) throw saleError;
+      const { data: sale, error: saleError } = await supabase.from("sales").insert([saleObj]).select().single();
+
+      if (saleError) {
+        if (!navigator.onLine || saleError.message.includes("fetch")) {
+          await offlineSync.queueSale(saleObj);
+          // Still show receipt from local data if offline
+          const saleTransaction: SaleTransaction = {
+            id: `offline-${Date.now()}`, date: new Date().toISOString(), items: cart,
+            subtotal, discount: Number(discountVal) || 0, discountType,
+            tradeInValue: tradeIn, tradeInDevice: tradeInDevice || undefined,
+            total, paymentMethod, customerName: customerName || undefined,
+            customerPhone: customerPhone || undefined,
+          };
+          setReceiptData(saleTransaction);
+          setCheckoutOpen(false);
+          return; 
+        }
+        throw saleError;
+      }
 
       // 2. Update Inventory (Phones -> Sold, Accessories -> Stock Decrease)
       for (const item of cart) {
@@ -203,7 +233,7 @@ const Sales = () => {
       `🧾 *iHacs Receipt*`,
       `Date: ${new Date(receiptData.date).toLocaleString("en-LK")}`,
       ``,
-      ...receiptData.items.map((i) => `${i.emoji} ${i.name} x${i.quantity} - ${formatLKR(i.price * i.quantity)}${i.imei ? ` (IMEI: ${i.imei})` : ""}`),
+      ...receiptData.items.map((i) => `${i.name} x${i.quantity} - ${formatLKR(i.price * i.quantity)}${i.imei ? ` (IMEI: ${i.imei})` : ""}`),
       ``,
       `Subtotal: ${formatLKR(receiptData.subtotal)}`,
       receiptData.discount > 0 ? `Discount: -${formatLKR(discountAmount)}` : "",
@@ -459,16 +489,21 @@ const Sales = () => {
 
       {/* Receipt Dialog */}
       <Dialog open={!!receiptData} onOpenChange={() => resetSale()}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto bg-white border-2">
           <DialogHeader>
-            <DialogTitle className="text-center">🧾 Receipt</DialogTitle>
+            <DialogTitle className="text-center font-bold text-xl text-black">📄 Invoice</DialogTitle>
           </DialogHeader>
           {receiptData && (
-            <div ref={receiptRef} className="space-y-4">
-              <div className="text-center border-b border-dashed border-border pb-3">
-                <p className="text-lg font-bold text-foreground">📱 iHacs</p>
-                <p className="text-xs text-muted-foreground">Mobile Shop & Accessories</p>
-                <p className="text-xs text-muted-foreground mt-1">{new Date(receiptData.date).toLocaleString("en-LK")}</p>
+            <div ref={receiptRef} className="space-y-4 py-2 text-black">
+              <div className="text-center border-b border-dashed border-zinc-300 pb-4">
+                <img src="434757956_122139159188124564_4746025914570679797_n.jpg" alt="Logo" className="h-20 w-20 mx-auto mb-2 object-contain" />
+                <p className="text-xl font-black">iHacs Solutions</p>
+                <p className="text-[11px] font-semibold text-zinc-600">Pussellawa, Sri Lanka</p>
+                <p className="text-[11px] font-semibold text-zinc-600">076 902 9003 / 075 098 5291</p>
+                <p className="text-[10px] text-zinc-500">ihackssolution@gmail.com</p>
+                <div className="mt-3 py-1 bg-zinc-100 rounded text-[10px] font-bold text-zinc-700">
+                  {new Date(receiptData.date).toLocaleString("en-LK")}
+                </div>
               </div>
               {receiptData.customerName && (
                 <div className="text-xs text-muted-foreground">
@@ -480,7 +515,7 @@ const Sales = () => {
                 {receiptData.items.map((item, i) => (
                   <div key={i} className="flex justify-between text-sm">
                     <div>
-                      <p className="text-foreground">{item.emoji} {item.name} ×{item.quantity}</p>
+                      <p className="text-foreground font-semibold">{item.name} ×{item.quantity}</p>
                       {item.imei && <p className="text-[10px] text-muted-foreground">IMEI: {item.imei}</p>}
                     </div>
                     <span className="font-medium text-foreground">{formatLKR(item.price * item.quantity)}</span>

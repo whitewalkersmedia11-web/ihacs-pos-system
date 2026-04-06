@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Search, ChevronRight, Calendar, Loader2 } from "lucide-react";
+import { Search, ChevronRight, Calendar, Loader2, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SaleTransaction } from "@/data/types";
 import { supabase } from "@/lib/supabase";
@@ -11,7 +11,7 @@ const SalesHistory = () => {
   const [search, setSearch] = useState("");
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<SaleTransaction | null>(null);
+  const [selected, setSelected] = useState<any | null>(null);
 
   useEffect(() => {
     fetchSales();
@@ -83,17 +83,7 @@ const SalesHistory = () => {
                 {salesArray.map((sale) => (
                   <button
                     key={sale.id}
-                    onClick={() => setSelected({
-                      ...sale,
-                      customerName: sale.customer_name,
-                      customerPhone: sale.customer_phone,
-                      receiptNumber: sale.id,
-                      paymentMethod: sale.payment_method,
-                      discountType: sale.discount_type,
-                      tradeInValue: sale.trade_in_value,
-                      tradeInDevice: sale.trade_in_device,
-                      items: sale.items || []
-                    } as any)}
+                    onClick={() => setSelected(sale)}
                     className="w-full bg-card border border-border rounded-xl p-3 md:p-4 flex items-center gap-3 hover:border-primary/40 hover:shadow-sm transition-all text-left"
                   >
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-lg">
@@ -123,40 +113,47 @@ const SalesHistory = () => {
         })}
       </div>
 
-      {/* Receipt Detail Dialog */}
       <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto bg-white border-2">
           <DialogHeader>
-            <DialogTitle className="text-center">🧾 Receipt Details</DialogTitle>
+            <DialogTitle className="text-center font-bold text-xl text-black">📄 Invoice Details</DialogTitle>
           </DialogHeader>
           {selected && (
-            <div className="space-y-4">
-              <div className="text-center border-b border-dashed border-border pb-3">
-                <p className="text-lg font-bold text-foreground">📱 iHacs</p>
-                <p className="text-xs text-muted-foreground">
+            <div className="space-y-4 py-2">
+              <div className="text-center border-b border-dashed border-zinc-300 pb-4 text-black">
+                <img src="434757956_122139159188124564_4746025914570679797_n.jpg" alt="Logo" className="h-20 w-20 mx-auto mb-2 object-contain" />
+                <p className="text-xl font-black">iHacs Solutions</p>
+                <p className="text-[11px] font-semibold text-zinc-600">Pussellawa, Sri Lanka</p>
+                <p className="text-[11px] font-semibold text-zinc-600">076 902 9003 / 075 098 5291</p>
+                <p className="text-[10px] text-zinc-500">ihackssolution@gmail.com</p>
+                <div className="mt-3 py-1 bg-zinc-100 rounded text-[10px] font-bold text-zinc-700">
                   {new Date(selected.date).toLocaleString("en-LK")}
-                </p>
-                <p className="text-xs text-muted-foreground">Ref: {selected.id}</p>
+                </div>
+                <p className="text-[9px] text-zinc-400 mt-1">Ref: {selected.id}</p>
               </div>
 
-              {selected.customerName && (
+              {selected.customer_name && (
                 <div className="text-xs text-muted-foreground">
-                  Customer: {selected.customerName}
-                  {selected.customerPhone && ` · ${selected.customerPhone}`}
+                  Customer: {selected.customer_name}
+                  {selected.customer_phone && ` · ${selected.customer_phone}`}
                 </div>
               )}
 
               <div className="space-y-2">
-                {selected.items.map((item, i) => (
-                  <div key={i} className="flex justify-between text-sm">
-                    <div>
-                      <p className="text-foreground">{item.emoji} {item.name} ×{item.quantity}</p>
-                      {item.imei && <p className="text-[10px] text-muted-foreground">IMEI: {item.imei}</p>}
-                      {item.warranty && <p className="text-[10px] text-primary">Warranty: {item.warranty}</p>}
+                {selected.items && Array.isArray(selected.items) && selected.items.length > 0 ? (
+                  selected.items.map((item: any, i: number) => (
+                    <div key={i} className="flex justify-between text-sm">
+                      <div>
+                        <p className="text-foreground font-semibold">{item.name} ×{item.quantity}</p>
+                        {item.imei && <p className="text-[10px] text-muted-foreground">IMEI: {item.imei}</p>}
+                        {item.warranty && <p className="text-[10px] text-primary">Warranty: {item.warranty}</p>}
+                      </div>
+                      <span className="font-medium text-foreground">{formatLKR((item.price || 0) * (item.quantity || 1))}</span>
                     </div>
-                    <span className="font-medium text-foreground">{formatLKR(item.price * item.quantity)}</span>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-center py-4 text-xs text-muted-foreground italic">No item details recorded</p>
+                )}
               </div>
 
               <div className="border-t border-dashed border-border pt-3 space-y-1 text-sm">
@@ -165,20 +162,20 @@ const SalesHistory = () => {
                 </div>
                 {selected.discount > 0 && (
                   <div className="flex justify-between text-accent">
-                    <span>Discount ({selected.discountType === "flat" ? "Flat" : `${selected.discount}%`})</span>
-                    <span>-{formatLKR(selected.discountType === "flat" ? selected.discount : selected.subtotal * selected.discount / 100)}</span>
+                    <span>Discount ({selected.discount_type === "flat" ? "Flat" : `${selected.discount}%`})</span>
+                    <span>-{formatLKR(selected.discount_type === "flat" ? selected.discount : selected.subtotal * selected.discount / 100)}</span>
                   </div>
                 )}
-                {selected.tradeInValue > 0 && (
+                {selected.trade_in_value > 0 && (
                   <div className="flex justify-between text-primary">
-                    <span>Trade-in ({selected.tradeInDevice})</span>
-                    <span>-{formatLKR(selected.tradeInValue)}</span>
+                    <span>Trade-in ({selected.trade_in_device})</span>
+                    <span>-{formatLKR(selected.trade_in_value)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-lg text-foreground pt-1">
                   <span>Total</span><span>{formatLKR(selected.total)}</span>
                 </div>
-                <p className="text-xs text-muted-foreground text-center pt-1">Paid via {selected.paymentMethod}</p>
+                <p className="text-xs text-muted-foreground text-center pt-1">Paid via {selected.payment_method}</p>
               </div>
             </div>
           )}
