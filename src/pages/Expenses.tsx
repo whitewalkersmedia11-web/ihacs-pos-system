@@ -1,10 +1,10 @@
-import { useState } from "react";
-import { Plus, Edit2, Trash2, Filter } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Plus, Edit2, Trash2, Filter, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { expenses as initialExpenses } from "@/data/mockData";
 import { Expense, ExpenseCategory } from "@/data/types";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 const formatLKR = (v: number) => `Rs. ${v.toLocaleString("en-LK")}`;
 
@@ -16,10 +16,28 @@ const categoryEmojis: Record<ExpenseCategory, string> = {
 const filterOptions = ["All", "This Month", ...categories] as const;
 
 const Expenses = () => {
-  const [expenseList, setExpenseList] = useState<Expense[]>(initialExpenses);
+  const [expenseList, setExpenseList] = useState<Expense[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editExpense, setEditExpense] = useState<Expense | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [filter, setFilter] = useState<string>("All");
+
+  useEffect(() => {
+    fetchExpenses();
+  }, []);
+
+  const fetchExpenses = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.from("expenses").select("*").order("date", { ascending: false });
+      if (error) throw error;
+      setExpenseList(data || []);
+    } catch (error: any) {
+      toast.error("Failed to load expenses: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const now = new Date();
   const thisMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -30,28 +48,57 @@ const Expenses = () => {
     return e.category === filter;
   });
 
-  const totalFiltered = filtered.reduce((s, e) => s + e.amount, 0);
+  const totalFiltered = filtered.reduce((s, e) => s + Number(e.amount), 0);
 
-  const saveExpense = (exp: Expense) => {
-    if (isNew) {
-      setExpenseList((prev) => [{ ...exp, id: `e${Date.now()}` }, ...prev]);
-      toast.success("Expense added");
-    } else {
-      setExpenseList((prev) => prev.map((e) => (e.id === exp.id ? exp : e)));
-      toast.success("Expense updated");
+  const saveExpense = async (exp: Expense) => {
+    const expData = {
+      category: exp.category,
+      amount: exp.amount,
+      date: exp.date,
+      note: exp.note
+    };
+
+    try {
+      if (isNew) {
+        const { error } = await supabase.from("expenses").insert([expData]);
+        if (error) throw error;
+        toast.success("Expense added");
+      } else {
+        const { error } = await supabase.from("expenses").update(expData).eq("id", exp.id);
+        if (error) throw error;
+        toast.success("Expense updated");
+      }
+      fetchExpenses();
+      setEditExpense(null);
+      setIsNew(false);
+    } catch (error: any) {
+      toast.error("Error saving expense: " + error.message);
     }
-    setEditExpense(null);
-    setIsNew(false);
   };
 
-  const deleteExpense = (id: string) => {
-    setExpenseList((prev) => prev.filter((e) => e.id !== id));
-    toast.success("Expense deleted");
+  const deleteExpense = async (id: string) => {
+    try {
+      const { error } = await supabase.from("expenses").delete().eq("id", id);
+      if (error) throw error;
+      toast.success("Expense deleted");
+      fetchExpenses();
+    } catch (error: any) {
+      toast.error("Error deleting expense: " + error.message);
+    }
   };
 
   const newExpense = (): Expense => ({
     id: "", category: "Other", amount: 0, date: new Date().toISOString().split("T")[0], note: "",
   });
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+        <p className="text-muted-foreground animate-pulse">Loading expenses...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-4">
@@ -66,7 +113,7 @@ const Expenses = () => {
       </div>
 
       {/* Filter Bar */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
         {filterOptions.map((f) => (
           <button
             key={f}
@@ -95,7 +142,7 @@ const Expenses = () => {
 
       {/* Expense List */}
       <div className="space-y-2">
-        {filtered.sort((a, b) => b.date.localeCompare(a.date)).map((exp) => (
+        {filtered.map((exp) => (
           <div key={exp.id} className="bg-card border border-border rounded-xl p-3 flex items-center gap-3">
             <span className="text-2xl">{categoryEmojis[exp.category]}</span>
             <div className="flex-1 min-w-0">

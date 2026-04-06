@@ -1,10 +1,10 @@
-import { useState, useCallback, useMemo, useRef } from "react";
-import { Search, Plus, Minus, Trash2, ShoppingCart, Tag, Smartphone, Printer, Share2, FileText, Apple, Monitor, Tablet, Package, ShieldCheck, Cable, Headphones, BatteryCharging, Zap, MoreHorizontal } from "lucide-react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { Search, Plus, Minus, Trash2, ShoppingCart, Tag, Smartphone, Printer, Share2, FileText, Apple, Monitor, Tablet, Package, ShieldCheck, Cable, Headphones, BatteryCharging, Zap, MoreHorizontal, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { phones, accessories, quickAddItems } from "@/data/mockData";
-import { CartItemPOS, SaleTransaction } from "@/data/types";
+import { CartItemPOS, SaleTransaction, Phone, Accessory } from "@/data/types";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 const formatLKR = (v: number) => `Rs. ${v.toLocaleString("en-LK")}`;
 
@@ -36,20 +36,46 @@ const Sales = () => {
   const [accCat, setAccCat] = useState<string>("All");
   const receiptRef = useRef<HTMLDivElement>(null);
 
+  const [dbPhones, setDbPhones] = useState<Phone[]>([]);
+  const [dbAccessories, setDbAccessories] = useState<Accessory[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    setLoading(true);
+    try {
+      const { data: phones, error: phoneError } = await supabase.from("phones").select("*").eq("status", "In Stock");
+      const { data: acc, error: accError } = await supabase.from("accessories").select("*");
+
+      if (phoneError) throw phoneError;
+      if (accError) throw accError;
+
+      setDbPhones(phones || []);
+      setDbAccessories(acc || []);
+    } catch (error: any) {
+      toast.error("Failed to load products: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const allProducts = useMemo(() => {
-    const phoneItems = phones.filter((p) => p.status === "In Stock").map((p) => ({
+    const phoneItems = dbPhones.map((p) => ({
       id: p.id, type: "phone" as const, name: `${p.brand} ${p.model}`, price: p.price,
       imei: p.imei, warranty: p.warranty, emoji: "📱",
       sub: `${p.condition} · ${p.storage} · ${p.color}`,
       category: p.category,
     }));
-    const accItems = accessories.map((a) => ({
+    const accItems = dbAccessories.map((a) => ({
       id: a.id, type: "accessory" as const, name: a.name, price: a.price,
       emoji: a.emoji, sub: `SKU: ${a.sku} · Stock: ${a.stock}`,
       category: a.category,
     }));
     return [...phoneItems, ...accItems];
-  }, []);
+  }, [dbPhones, dbAccessories]);
 
   const catalogFiltered = useMemo(() => {
     let items = allProducts;
@@ -63,9 +89,7 @@ const Sales = () => {
     return items;
   }, [allProducts, catalogTab, phoneCat, accCat, search]);
 
-  const quickItems = accessories.filter((a) => quickAddItems.includes(a.id));
-
-  const addToCart = useCallback((product: typeof allProducts[0]) => {
+  const addToCart = useCallback((product: any) => {
     setCart((prev) => {
       if (product.type === "phone") {
         if (prev.find((i) => i.id === product.id)) return prev;
@@ -100,18 +124,55 @@ const Sales = () => {
     setCheckoutOpen(true);
   };
 
-  const completeSale = () => {
+  const completeSale = async () => {
     if (!paymentMethod) return;
-    const sale: SaleTransaction = {
-      id: `s${Date.now()}`, date: new Date().toISOString(), items: cart,
-      subtotal, discount: Number(discountVal) || 0, discountType,
-      tradeInValue: tradeIn, tradeInDevice: tradeInDevice || undefined,
-      total, paymentMethod, customerName: customerName || undefined,
-      customerPhone: customerPhone || undefined,
-    };
-    setReceiptData(sale);
-    setCheckoutOpen(false);
-    toast.success(`Sale completed - ${formatLKR(total)}`);
+    setLoading(true);
+
+    try {
+      // 1. Record the Sale
+      const { data: sale, error: saleError } = await supabase.from("sales").insert([{
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        subtotal,
+        discount: Number(discountVal) || 0,
+        discount_type: discountType,
+        trade_in_value: tradeIn,
+        trade_in_device: tradeInDevice,
+        total,
+        payment_method: paymentMethod
+      }]).select().single();
+
+      if (saleError) throw saleError;
+
+      // 2. Update Inventory (Phones -> Sold, Accessories -> Stock Decrease)
+      for (const item of cart) {
+        if (item.type === "phone") {
+          await supabase.from("phones").update({ status: "Sold" }).eq("id", item.id);
+        } else {
+          const acc = dbAccessories.find(a => a.id === item.id);
+          if (acc) {
+            await supabase.from("accessories").update({ stock: acc.stock - item.quantity }).eq("id", item.id);
+          }
+        }
+      }
+
+      const saleTransaction: SaleTransaction = {
+        id: sale.id, date: sale.date, items: cart,
+        subtotal, discount: Number(discountVal) || 0, discountType,
+        tradeInValue: tradeIn, tradeInDevice: tradeInDevice || undefined,
+        total, paymentMethod, customerName: customerName || undefined,
+        customerPhone: customerPhone || undefined,
+      };
+
+      setReceiptData(saleTransaction);
+      setCheckoutOpen(false);
+      toast.success(`Sale completed - ${formatLKR(total)}`);
+      fetchProducts(); // Refresh local list
+    } catch (error: any) {
+      toast.error("Error completing sale: " + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const resetSale = () => {
@@ -127,6 +188,10 @@ const Sales = () => {
   };
 
   const handlePrint = () => window.print();
+
+  const quickItems = useMemo(() => {
+    return dbAccessories.slice(0, 8); // Showing first 8 accessories as quick add
+  }, [dbAccessories]);
 
   const handleWhatsApp = () => {
     if (!receiptData) return;

@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Search, Edit2, Trash2, Smartphone, Package, Apple, Monitor, Tablet, ShieldCheck, Cable, Headphones, BatteryCharging, Zap, MoreHorizontal } from "lucide-react";
-import { phones as initialPhones, accessories as initialAccessories } from "@/data/mockData";
+import { Plus, Search, Edit2, Trash2, Smartphone, Package, Apple, Monitor, Tablet, ShieldCheck, Cable, Headphones, BatteryCharging, Zap, MoreHorizontal, Loader2 } from "lucide-react";
 import { Phone, Accessory } from "@/data/types";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 const formatLKR = (v: number) => `Rs. ${v.toLocaleString("en-LK")}`;
 
@@ -33,8 +33,9 @@ const accCategoryIcons: Record<string, React.ElementType> = {
 };
 
 const Inventory = () => {
-  const [phoneList, setPhoneList] = useState<Phone[]>(initialPhones);
-  const [accList, setAccList] = useState<Accessory[]>(initialAccessories);
+  const [phoneList, setPhoneList] = useState<Phone[]>([]);
+  const [accList, setAccList] = useState<Accessory[]>([]);
+  const [loading, setLoading] = useState(true);
   const [phoneSearch, setPhoneSearch] = useState("");
   const [accSearch, setAccSearch] = useState("");
   const [editPhone, setEditPhone] = useState<Phone | null>(null);
@@ -44,6 +45,131 @@ const Inventory = () => {
   const [phoneSubTab, setPhoneSubTab] = useState<"iPhone" | "Android" | "Other">("iPhone");
   const [accSubTab, setAccSubTab] = useState<string>("All");
 
+  useEffect(() => {
+    fetchInventory();
+  }, []);
+
+  const fetchInventory = async () => {
+    setLoading(true);
+    try {
+      const { data: phones, error: phoneError } = await supabase.from("phones").select("*");
+      const { data: acc, error: accError } = await supabase.from("accessories").select("*");
+
+      if (phoneError) throw phoneError;
+      if (accError) throw accError;
+
+      setPhoneList(phones.map(p => ({
+        ...p,
+        addedDate: p.added_date
+      })) || []);
+      setAccList(acc.map(a => ({
+        ...a,
+        lowStockThreshold: a.low_stock_threshold
+      })) || []);
+    } catch (error: any) {
+      toast.error("Failed to fetch inventory: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const savePhone = async (phone: Phone) => {
+    const phoneData = {
+      brand: phone.brand,
+      model: phone.model,
+      imei: phone.imei,
+      price: phone.price,
+      cost: phone.cost,
+      warranty: phone.warranty,
+      color: phone.color,
+      storage: phone.storage,
+      condition: phone.condition,
+      status: phone.status,
+      category: phone.category,
+    };
+
+    try {
+      if (isNewPhone) {
+        const { error } = await supabase.from("phones").insert([phoneData]);
+        if (error) throw error;
+        toast.success("Phone added");
+      } else {
+        const { error } = await supabase.from("phones").update(phoneData).eq("id", phone.id);
+        if (error) throw error;
+        toast.success("Phone updated");
+      }
+      fetchInventory();
+      setEditPhone(null);
+      setIsNewPhone(false);
+    } catch (error: any) {
+      toast.error("Error saving phone: " + error.message);
+    }
+  };
+
+  const deletePhone = async (id: string) => {
+    try {
+      const { error } = await supabase.from("phones").delete().eq("id", id);
+      if (error) throw error;
+      toast.success("Phone deleted");
+      fetchInventory();
+    } catch (error: any) {
+      toast.error("Error deleting phone: " + error.message);
+    }
+  };
+
+  const saveAcc = async (acc: Accessory) => {
+    const accData = {
+      name: acc.name,
+      sku: acc.sku,
+      category: acc.category,
+      price: acc.price,
+      cost: acc.cost,
+      stock: acc.stock,
+      low_stock_threshold: acc.lowStockThreshold,
+      emoji: acc.emoji,
+    };
+
+    try {
+      if (isNewAcc) {
+        const { error } = await supabase.from("accessories").insert([accData]);
+        if (error) throw error;
+        toast.success("Accessory added");
+      } else {
+        const { error } = await supabase.from("accessories").update(accData).eq("id", acc.id);
+        if (error) throw error;
+        toast.success("Accessory updated");
+      }
+      fetchInventory();
+      setEditAcc(null);
+      setIsNewAcc(false);
+    } catch (error: any) {
+      toast.error("Error saving accessory: " + error.message);
+    }
+  };
+
+  const deleteAcc = async (id: string) => {
+    try {
+      const { error } = await supabase.from("accessories").delete().eq("id", id);
+      if (error) throw error;
+      toast.success("Accessory deleted");
+      fetchInventory();
+    } catch (error: any) {
+      toast.error("Error deleting accessory: " + error.message);
+    }
+  };
+
+  const newPhone = (): Phone => ({
+    id: "", brand: "", model: "", imei: "", price: 0, cost: 0,
+    warranty: "6 months", color: "", storage: "128GB", condition: "New",
+    status: "In Stock", addedDate: new Date().toISOString(),
+    category: phoneSubTab,
+  });
+
+  const newAcc = (): Accessory => ({
+    id: "", name: "", sku: "", category: accSubTab === "All" ? "Other" : accSubTab as Accessory["category"],
+    price: 0, cost: 0, stock: 0, lowStockThreshold: 5, emoji: "📦",
+  });
+
   const filteredPhones = phoneList
     .filter((p) => p.category === phoneSubTab)
     .filter((p) => `${p.brand} ${p.model} ${p.imei}`.toLowerCase().includes(phoneSearch.toLowerCase()));
@@ -52,51 +178,14 @@ const Inventory = () => {
     .filter((a) => accSubTab === "All" || a.category === accSubTab)
     .filter((a) => `${a.name} ${a.sku}`.toLowerCase().includes(accSearch.toLowerCase()));
 
-  const savePhone = (phone: Phone) => {
-    if (isNewPhone) {
-      setPhoneList((prev) => [...prev, { ...phone, id: `p${Date.now()}` }]);
-      toast.success("Phone added");
-    } else {
-      setPhoneList((prev) => prev.map((p) => (p.id === phone.id ? phone : p)));
-      toast.success("Phone updated");
-    }
-    setEditPhone(null);
-    setIsNewPhone(false);
-  };
-
-  const deletePhone = (id: string) => {
-    setPhoneList((prev) => prev.filter((p) => p.id !== id));
-    toast.success("Phone deleted");
-  };
-
-  const saveAcc = (acc: Accessory) => {
-    if (isNewAcc) {
-      setAccList((prev) => [...prev, { ...acc, id: `a${Date.now()}` }]);
-      toast.success("Accessory added");
-    } else {
-      setAccList((prev) => prev.map((a) => (a.id === acc.id ? acc : a)));
-      toast.success("Accessory updated");
-    }
-    setEditAcc(null);
-    setIsNewAcc(false);
-  };
-
-  const deleteAcc = (id: string) => {
-    setAccList((prev) => prev.filter((a) => a.id !== id));
-    toast.success("Accessory deleted");
-  };
-
-  const newPhone = (): Phone => ({
-    id: "", brand: "", model: "", imei: "", price: 0, cost: 0,
-    warranty: "6 months", color: "", storage: "128GB", condition: "New",
-    status: "In Stock", addedDate: new Date().toISOString().split("T")[0],
-    category: phoneSubTab,
-  });
-
-  const newAcc = (): Accessory => ({
-    id: "", name: "", sku: "", category: accSubTab === "All" ? "Other" : accSubTab as Accessory["category"],
-    price: 0, cost: 0, stock: 0, lowStockThreshold: 5, emoji: "📦",
-  });
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+        <p className="text-muted-foreground animate-pulse">Loading inventory...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-3 md:p-6 max-w-7xl mx-auto">
