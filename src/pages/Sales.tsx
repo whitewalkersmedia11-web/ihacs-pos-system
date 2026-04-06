@@ -304,7 +304,23 @@ const Sales = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={receiptData} onOpenChange={() => resetSale()}>
+      <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
+        <DialogContent className="sm:max-w-md rounded-[2.5rem] p-6 text-center">
+            <h2 className="text-xl font-black mb-1">Confirm Total</h2>
+            <p className="text-3xl font-black text-[#f36c21] mb-6">{formatLKR(total)}</p>
+            <div className="grid grid-cols-3 gap-3 mb-6">
+               {["Cash", "Card", "Mobile"].map(m => (
+                 <button key={m} onClick={() => setPaymentMethod(m)} className={`h-20 rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${paymentMethod === m ? 'border-[#f36c21] bg-orange-50 shadow-md' : 'border-slate-100'}`}>
+                    <span className="text-xl">{m === 'Cash' ? '💵' : m === 'Card' ? '💳' : '📱'}</span>
+                    <span className="text-[9px] font-black uppercase">{m}</span>
+                 </button>
+               ))}
+            </div>
+            <Button onClick={completeSale} disabled={!paymentMethod || loading} className="w-full h-14 bg-slate-900 rounded-xl text-white font-black text-base shadow-xl">{loading ? <Loader2 className="animate-spin" /> : 'Confirm Order'}</Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!receiptData} onOpenChange={() => resetSale()}>
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto bg-white border-none rounded-[2rem] p-6 shadow-2xl">
           {receiptData && (
             <div className="space-y-5">
