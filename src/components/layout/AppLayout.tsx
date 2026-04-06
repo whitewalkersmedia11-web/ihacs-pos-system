@@ -18,7 +18,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       {/* Top Header */}
       <header className="bg-card border-b border-border px-3 py-2 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-2">
-          <img src="/434757956_122139159188124564_4746025914570679797_n.jpg" alt="iHacs Logo" className="h-6 w-auto object-contain" />
+          <img src="434757956_122139159188124564_4746025914570679797_n.jpg" alt="iHacs Logo" className="h-6 w-auto object-contain" />
           <h1 className="text-sm font-bold text-foreground">iHacs POS</h1>
         </div>
         <button
