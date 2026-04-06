@@ -155,20 +155,21 @@ const Sales = () => {
     <div className="flex flex-col h-[calc(100vh-65px)] bg-slate-50 relative overflow-hidden font-inter">
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-slate-50 relative">
         
-        {/* COMPACT TOP HEADER */}
-        <div className="bg-white border-b border-slate-200/60 p-3 pb-4 space-y-3 shrink-0 shadow-sm z-30">
-          <div className="flex items-center justify-between px-1">
-             <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center p-1.5"><img src="434757956_122139159188124564_4746025914570679797_n.jpg" alt="Logo" className="w-full h-full object-contain" /></div>
-                <h2 className="text-lg font-black text-slate-900 tracking-tight leading-none">Invoice Generator</h2>
-             </div>
-             <button onClick={() => setShowCatalog(true)} className="px-5 h-10 bg-slate-900 text-white rounded-xl font-black text-[9px] uppercase tracking-[0.1em] active:scale-95 transition-all flex items-center gap-2 ring-4 ring-slate-900/5">CATALOG HUB</button>
+        {/* FIXED TOP: Search & Header */}
+        <div className="bg-white border-b border-slate-200/60 p-4 pb-5 space-y-4 shrink-0 shadow-sm z-30">
+          <div className="flex items-center justify-center gap-3">
+             <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-2 shrink-0"><img src="434757956_122139159188124564_4746025914570679797_n.jpg" alt="Logo" className="w-full h-full object-contain" /></div>
+             <h2 className="text-xl font-black text-slate-900 tracking-tight leading-none">Invoice Generator</h2>
           </div>
           
           <div className="relative group mx-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 group-focus-within:text-[#f36c21] transition-colors" />
-            <input placeholder="Search or scan imei..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:outline-none focus:border-[#f36c21] transition-all" />
+            <input placeholder="Search or scan imei..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:outline-none focus:border-[#f36c21] transition-all shadow-sm" />
           </div>
+
+          <button onClick={() => setShowCatalog(true)} className="w-full h-16 bg-slate-900 text-white rounded-[1.8rem] font-black text-sm uppercase tracking-[0.2em] active:scale-[0.98] transition-all flex items-center justify-center gap-3 shadow-2xl shadow-slate-300 ring-4 ring-slate-900/5">
+             <Plus className="w-6 h-6 stroke-[4]" /> ADD ITEMS
+          </button>
         </div>
 
         {/* COMPACT CENTER: Cart Items */}
