@@ -221,7 +221,7 @@ const Sales = () => {
 
         {/* ULTRA-COMPACT BOTTOM SUMMARY */}
         {cart.length > 0 && (
-          <div className="bg-white border-t border-slate-200 p-4 space-y-3 shrink-0 shadow-[0_-20px_40px_rgba(0,0,0,0.05)] rounded-t-[2.5rem] z-30">
+          <div className="bg-white border-t border-slate-200 p-4 space-y-3 shrink-0 shadow-[0_-20px_40px_rgba(0,0,0,0.15)] rounded-t-[2.5rem] relative z-50">
              <div className="grid grid-cols-2 gap-2">
                 <input placeholder="Name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="w-full text-xs font-black bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 transition-all" />
                 <input placeholder="Phone" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="w-full text-xs font-black bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 transition-all" />
