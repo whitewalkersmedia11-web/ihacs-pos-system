@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { Search, Plus, Minus, Trash2, ShoppingCart, Smartphone, Printer, Share2, FileText, Apple, Monitor, Tablet, Package, ShieldCheck, Cable, Headphones, BatteryCharging, Zap, MoreHorizontal, ChevronRight, Loader2 } from "lucide-react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { Search, Plus, Trash2, ShoppingCart, Smartphone, Printer, Share2, FileText, Apple, Monitor, Tablet, Package, ShieldCheck, Cable, Headphones, BatteryCharging, Zap, MoreHorizontal, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CartItemPOS, SaleTransaction, Phone, Accessory } from "@/data/types";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { CartItemPOS, Phone, Accessory } from "@/data/types";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 
@@ -76,9 +76,8 @@ const Sales = () => {
       items = items.filter(p => p.type === "accessory");
       if (accCat !== "All") items = items.filter(p => p.category === accCat);
     }
-    if (search) items = items.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || (p.type === 'phone' && p.imei?.includes(search)));
     return items;
-  }, [allProducts, catalogTab, phoneCat, accCat, search]);
+  }, [allProducts, catalogTab, phoneCat, accCat]);
 
   const addToCart = useCallback((product: any) => {
     setCart((prev) => {
@@ -163,8 +162,19 @@ const Sales = () => {
           </div>
           
           <div className="relative group mx-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 group-focus-within:text-[#f36c21] transition-colors" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-[#f36c21] transition-colors" />
             <input placeholder="Search or scan imei..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:outline-none focus:border-[#f36c21] transition-all shadow-sm" />
+            {search && (
+              <div className="absolute top-full left-0 right-0 mt-3 bg-white border border-slate-200 rounded-[2rem] shadow-[0_30px_60px_rgba(0,0,0,0.15)] z-[100] max-h-[380px] overflow-y-auto p-3 ring-8 ring-slate-900/5 animate-in fade-in zoom-in-95">
+                {allProducts.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || (p.type === 'phone' && p.imei?.includes(search))).slice(0, 10).map(p => (
+                    <button key={p.id} onClick={() => { addToCart(p); setSearch(""); }} className="w-full flex items-center gap-4 p-4 hover:bg-orange-50 rounded-[1.5rem] transition-all border-b border-slate-50 last:border-0 group text-left">
+                        <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-xl group-hover:scale-110 transition-all">{p.emoji}</div>
+                        <div className="flex-1 min-w-0"><p className="text-sm font-black text-slate-900 leading-tight">{p.name}</p><p className="text-[10px] font-bold text-slate-400 mt-0.5 opacity-60 truncate">{p.sub}</p></div>
+                        <p className="text-sm font-black text-[#f36c21]">{formatLKR(p.price)}</p>
+                    </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <button onClick={() => setShowCatalog(true)} className="w-full h-16 bg-slate-900 text-white rounded-[1.8rem] font-black text-sm uppercase tracking-[0.2em] active:scale-[0.98] transition-all flex items-center justify-center gap-3 shadow-2xl shadow-slate-300 ring-4 ring-slate-900/5">
@@ -260,7 +270,7 @@ const Sales = () => {
                       {(["iPhone", "Android", "Other"] as PhoneCat[]).map((cat) => {
                          const Icon = phoneCatIcons[cat] || Smartphone;
                          return (
-                           <button key={cat} onClick={() => setPhoneCat(cat)} className={`flex flex-col items-center justify-center gap-1.5 h-20 rounded-2xl border-2 transition-all active:scale-95 ${phoneCat === cat ? 'bg-slate-900 border-slate-900 text-white shadow-lg' : 'bg-white border-slate-50 text-slate-400'}`}>
+                           <button key={cat} onClick={() => setPhoneCat(cat)} className={`flex flex-col items-center justify-center gap-1.5 h-20 rounded-2xl border-2 transition-all active:scale-95 ${phoneCat === cat ? 'bg-slate-900 border-slate-900 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-400'}`}>
                               <Icon className="w-5 h-5" />
                               <span className="text-[9px] font-black uppercase">{cat}</span>
                            </button>
@@ -294,30 +304,21 @@ const Sales = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
-        <DialogContent className="sm:max-w-md rounded-[2.5rem] p-6 text-center">
-            <h2 className="text-xl font-black mb-1">Confirm Total</h2>
-            <p className="text-3xl font-black text-[#f36c21] mb-6">{formatLKR(total)}</p>
-            <div className="grid grid-cols-3 gap-3 mb-6">
-               {["Cash", "Card", "Mobile"].map(m => (
-                 <button key={m} onClick={() => setPaymentMethod(m)} className={`h-20 rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${paymentMethod === m ? 'border-[#f36c21] bg-orange-50 shadow-md' : 'border-slate-100'}`}>
-                    <span className="text-xl">{m === 'Cash' ? '💵' : m === 'Card' ? '💳' : '📱'}</span>
-                    <span className="text-[9px] font-black uppercase">{m}</span>
-                 </button>
-               ))}
-            </div>
-            <Button onClick={completeSale} disabled={!paymentMethod || loading} className="w-full h-14 bg-slate-900 rounded-xl text-white font-black text-base shadow-xl">{loading ? <Loader2 className="animate-spin" /> : 'Confirm Order'}</Button>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!receiptData} onOpenChange={() => resetSale()}>
+      <Dialog open={receiptData} onOpenChange={() => resetSale()}>
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto bg-white border-none rounded-[2rem] p-6 shadow-2xl">
           {receiptData && (
             <div className="space-y-5">
               <div className="text-center pb-5 border-b border-dashed border-slate-200">
-                <img src="434757956_122139159188124564_4746025914570679797_n.jpg" alt="Logo" className="h-12 w-12 mx-auto mb-3" />
-                <h2 className="text-xl font-black">iHacs Solutions</h2>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Invoice Receipt</p>
+                <div className="w-32 h-32 rounded-[2.5rem] bg-white mx-auto flex items-center justify-center p-1 border border-slate-100 mb-6 shadow-sm">
+                   <img src="434757956_122139159188124564_4746025914570679797_n.jpg" alt="Logo" className="w-full h-full object-contain" />
+                </div>
+                <h2 className="text-2xl font-black text-slate-900 leading-none">iHacs Solutions</h2>
+                <div className="mt-2 space-y-0.5">
+                   <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Pussellawa, Sri Lanka</p>
+                   <p className="text-[8px] font-black text-slate-500 tracking-wider">076 902 9003 / 075 098 5291</p>
+                   <p className="text-[8px] font-black text-[#f36c21] lowercase">ihackssolution@gmail.com</p>
+                </div>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mt-4 border-t border-slate-50 pt-3">Commercial Invoice</p>
               </div>
               <div className="space-y-3">
                 {receiptData.items.map((i: any, idx: number) => (
@@ -333,7 +334,7 @@ const Sales = () => {
                     <p className="text-2xl leading-none">{formatLKR(receiptData.total)}</p>
                  </div>
               </div>
-              <div className="grid grid-cols-3 gap-2 pt-2">
+              <div className="grid grid-cols-3 gap-2 pt-2 print:hidden">
                 <Button onClick={() => window.print()} variant="outline" className="h-12 rounded-xl flex-col gap-1 text-[7px] font-black uppercase"><Printer className="w-3.5 h-3.5" /> Print</Button>
                 <Button onClick={handleWhatsApp} variant="outline" className="h-12 rounded-xl flex-col gap-1 text-[7px] font-black uppercase"><Share2 className="w-3.5 h-3.5 text-emerald-500" /> Share</Button>
                 <Button onClick={resetSale} className="h-12 rounded-xl flex-col gap-1 text-[7px] font-black uppercase bg-slate-900 text-white"><FileText className="w-3.5 h-3.5" /> New</Button>

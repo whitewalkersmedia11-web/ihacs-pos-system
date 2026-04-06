@@ -153,15 +153,21 @@ const SalesHistory = () => {
         <DialogContent className="sm:max-w-md max-h-[95vh] overflow-y-auto bg-white border-none rounded-3xl p-0 shadow-2xl">
           {selected && (
             <div className="relative">
-              <div className="p-6 pb-2 text-center">
-                 <div className="w-16 h-16 rounded-3xl bg-slate-50 mx-auto flex items-center justify-center p-3 border border-slate-100 mb-4">
-                    <img src="434757956_122139159188124564_4746025914570679797_n.jpg" alt="Logo" className="w-full h-full object-contain" />
-                 </div>
-                 <h2 className="text-xl font-black text-slate-900">iHacs Solutions</h2>
-                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 mb-6">Commercial Invoice</p>
-              </div>
+               <div className="p-6 pb-2 text-center">
+                  <div className="w-32 h-32 rounded-[2.5rem] bg-white mx-auto flex items-center justify-center p-1 border border-slate-100 mb-6 shadow-sm">
+                     <img src="434757956_122139159188124564_4746025914570679797_n.jpg" alt="Logo" className="w-full h-full object-contain" />
+                  </div>
+                  <h2 className="text-2xl font-black text-slate-900 leading-none">iHacs Solutions</h2>
+                  <div className="mt-1.5 space-y-0.5">
+                     <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Pussellawa, Sri Lanka</p>
+                     <p className="text-[8px] font-black text-slate-500 tracking-wider">076 902 9003 / 075 098 5291</p>
+                     <p className="text-[8px] font-black text-[#f36c21] lowercase">ihackssolution@gmail.com</p>
+                  </div>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mt-4 border-t border-slate-50 pt-3">Commercial Invoice</p>
+               </div>
 
-              <div className="grid grid-cols-4 gap-2 px-6 mb-8">
+              {/* Action Bar - Hidden during print */}
+              <div className="grid grid-cols-4 gap-2 px-6 mb-8 print:hidden">
                  <button onClick={() => updateStatus(selected.id, selected.payment_status)} className={`flex flex-col items-center gap-2 p-3 rounded-2xl transition-all active:scale-95 ${selected.payment_status === 'Paid' ? 'bg-emerald-50 border border-emerald-100' : 'bg-slate-50 border border-slate-100'}`}>
                     <CheckCircle2 className={`w-5 h-5 ${selected.payment_status === 'Paid' ? 'text-emerald-500' : 'text-slate-400'}`} />
                     <span className="text-[8px] font-black uppercase text-slate-500">Status</span>
