@@ -1,11 +1,10 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { Search, Plus, Minus, Trash2, ShoppingCart, Tag, Smartphone, Printer, Share2, FileText, Apple, Monitor, Tablet, Package, ShieldCheck, Cable, Headphones, BatteryCharging, Zap, MoreHorizontal, Loader2 } from "lucide-react";
+import { Search, Plus, Minus, Trash2, ShoppingCart, Smartphone, Printer, Share2, FileText, Apple, Monitor, Tablet, Package, ShieldCheck, Cable, Headphones, BatteryCharging, Zap, MoreHorizontal, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CartItemPOS, SaleTransaction, Phone, Accessory } from "@/data/types";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { offlineSync } from "@/lib/offlineSync";
 
 const formatLKR = (v: number) => `Rs. ${v.toLocaleString("en-LK")}`;
 
@@ -21,7 +20,10 @@ const accCategories = ["Back Covers", "Tempered Glasses", "Chargers", "Cables", 
 
 const Sales = () => {
   const [search, setSearch] = useState("");
-  const [cart, setCart] = useState<CartItemPOS[]>([]);
+  const [cart, setCart] = useState<CartItemPOS[]>(() => {
+    const saved = localStorage.getItem("ihacs_cart");
+    return saved ? JSON.parse(saved) : [];
+  });
   const [discountVal, setDiscountVal] = useState("");
   const [discountType, setDiscountType] = useState<"flat" | "percentage">("flat");
   const [tradeInVal, setTradeInVal] = useState("");
@@ -29,514 +31,311 @@ const Sales = () => {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [receiptData, setReceiptData] = useState<SaleTransaction | null>(null);
+  const [receiptData, setReceiptData] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
   const [showCatalog, setShowCatalog] = useState(false);
   const [catalogTab, setCatalogTab] = useState<CatalogTab>("phones");
   const [phoneCat, setPhoneCat] = useState<PhoneCat>("iPhone");
   const [accCat, setAccCat] = useState<string>("All");
-  const receiptRef = useRef<HTMLDivElement>(null);
-
+  const [loading, setLoading] = useState(false);
   const [dbPhones, setDbPhones] = useState<Phone[]>([]);
   const [dbAccessories, setDbAccessories] = useState<Accessory[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    localStorage.setItem("ihacs_cart", JSON.stringify(cart));
+  }, [cart]);
+
+  useEffect(() => { fetchProducts(); }, []);
 
   const fetchProducts = async () => {
-    setLoading(true);
     try {
-      const { data: phones, error: phoneError } = await supabase.from("phones").select("*").eq("status", "In Stock");
-      const { data: acc, error: accError } = await supabase.from("accessories").select("*");
-
-      if (phoneError) throw phoneError;
-      if (accError) throw accError;
-
+      const { data: phones } = await supabase.from("phones").select("*").eq("status", "In Stock");
+      const { data: acc } = await supabase.from("accessories").select("*");
       setDbPhones(phones || []);
       setDbAccessories(acc || []);
-      
-      // Cache data for offline access
-      offlineSync.cacheInventory({ phones: phones || [], accessories: acc || [] });
-    } catch (error: any) {
-      if (!navigator.onLine) {
-        toast.info("Using cached stock (Offline Mode)");
-        const cached = offlineSync.getCachedInventory();
-        setDbPhones(cached.phones);
-        setDbAccessories(cached.accessories);
-      } else {
-        toast.error("Failed to load products: " + error.message);
-      }
-    } finally {
-      setLoading(false);
-    }
+    } catch (e: any) { toast.error("Stock error: " + e.message); }
   };
 
   const allProducts = useMemo(() => {
-    const phoneItems = dbPhones.map((p) => ({
+    const ps = dbPhones.map(p => ({
       id: p.id, type: "phone" as const, name: `${p.brand} ${p.model}`, price: p.price,
       imei: p.imei, warranty: p.warranty, emoji: "📱",
-      sub: `${p.condition} · ${p.storage} · ${p.color}`,
-      category: p.category,
-      cost: p.cost || 0
+      sub: `${p.condition} · ${p.storage}`, category: p.category, cost: p.cost || 0
     }));
-    const accItems = dbAccessories.map((a) => ({
+    const as = dbAccessories.map(a => ({
       id: a.id, type: "accessory" as const, name: a.name, price: a.price,
-      emoji: a.emoji, sub: `SKU: ${a.sku} · Stock: ${a.stock}`,
-      category: a.category,
-      cost: a.cost || 0
+      emoji: a.emoji, sub: `SKU: ${a.sku}`, category: a.category, cost: a.cost || 0
     }));
-    return [...phoneItems, ...accItems];
+    return [...ps, ...as];
   }, [dbPhones, dbAccessories]);
 
   const catalogFiltered = useMemo(() => {
     let items = allProducts;
-    if (catalogTab === "phones") {
-      items = items.filter((p) => p.type === "phone" && p.category === phoneCat);
-    } else {
-      items = items.filter((p) => p.type === "accessory");
-      if (accCat !== "All") items = items.filter((p) => p.category === accCat);
+    if (catalogTab === "phones") items = items.filter(p => p.type === "phone" && p.category === phoneCat);
+    else {
+      items = items.filter(p => p.type === "accessory");
+      if (accCat !== "All") items = items.filter(p => p.category === accCat);
     }
-    if (search) items = items.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
+    if (search) items = items.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || (p.type === 'phone' && p.imei?.includes(search)));
     return items;
   }, [allProducts, catalogTab, phoneCat, accCat, search]);
 
   const addToCart = useCallback((product: any) => {
     setCart((prev) => {
-      if (product.type === "phone") {
-        if (prev.find((i) => i.id === product.id)) return prev;
-        return [...prev, { id: product.id, type: "phone", name: product.name, price: product.price, originalPrice: product.price, quantity: 1, imei: product.imei, warranty: product.warranty, emoji: product.emoji, cost: product.cost }];
-      }
-      const existing = prev.find((i) => i.id === product.id);
-      if (existing) return prev.map((i) => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { id: product.id, type: "accessory", name: product.name, price: product.price, originalPrice: product.price, quantity: 1, emoji: product.emoji, cost: product.cost }];
+      const exists = prev.find(i => i.id === product.id);
+      if (product.type === "phone" && exists) return prev;
+      if (exists) return prev.map(i => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
+      const item: any = {
+         id: product.id, type: product.type, name: product.name, price: product.price,
+         originalPrice: product.price, quantity: 1, imei: product.imei, warranty: product.warranty, 
+         emoji: product.emoji, cost: product.cost
+      };
+      return [...prev, item];
     });
-    toast.success(`Added ${product.name}`);
+    toast.success(`Added: ${product.name}`);
   }, []);
 
-  const updateQty = useCallback((id: string, delta: number) => {
-    setCart((prev) => prev.map((i) => i.id === id ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i));
-  }, []);
+  const updateQty = (id: string, d: number) => setCart(p => p.map(i => i.id === id ? { ...i, quantity: Math.max(1, i.quantity + d) } : i));
+  const updatePrice = (id: string, pr: number) => setCart(p => p.map(i => i.id === id ? { ...i, price: pr } : i));
+  const removeItem = (id: string) => setCart(p => p.filter(i => i.id !== id));
 
-  const updatePrice = useCallback((id: string, newPrice: number) => {
-    setCart((prev) => prev.map((i) => i.id === id ? { ...i, price: newPrice } : i));
-  }, []);
-
-  const removeItem = useCallback((id: string) => {
-    setCart((prev) => prev.filter((i) => i.id !== id));
-  }, []);
-
-  const subtotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const subtotal = cart.reduce((s, i) => s + (i.price * i.quantity), 0);
   const discountAmount = discountType === "flat" ? (Number(discountVal) || 0) : subtotal * (Number(discountVal) || 0) / 100;
   const tradeIn = Number(tradeInVal) || 0;
   const total = Math.max(0, subtotal - discountAmount - tradeIn);
 
-  const handleCheckout = () => {
-    if (cart.length === 0) return;
-    setCheckoutOpen(true);
-  };
-
   const completeSale = async () => {
     if (!paymentMethod) return;
     setLoading(true);
-
     try {
-      // 1. Record the Sale
-      const totalCost = cart.reduce((sum, i) => sum + (i.cost * i.quantity), 0);
-      const saleObj = {
-        customer_name: customerName,
-        customer_phone: customerPhone,
-        subtotal,
-        discount: Number(discountVal) || 0,
-        discount_type: discountType,
-        trade_in_value: tradeIn,
-        trade_in_device: tradeInDevice,
-        total,
-        total_cost: totalCost,
-        payment_method: paymentMethod,
-        items: [...cart] // ENSURE items are captured correctly here
+      const itemsBlob = JSON.stringify(cart);
+      const saleObj: any = {
+        customer_name: customerName, customer_phone: customerPhone,
+        subtotal, discount: Number(discountVal) || 0, discount_type: discountType,
+        trade_in_value: tradeIn, trade_in_device: tradeInDevice,
+        total, total_cost: cart.reduce((s, i) => s + (i.cost * i.quantity), 0),
+        payment_method: paymentMethod, items: itemsBlob, payment_status: 'Paid'
       };
+      
+      let finalId = `SALE-${Date.now()}`;
+      let finalDate = new Date().toISOString();
+      const { data: s, error } = await supabase.from("sales").insert([saleObj]).select().single();
+      if (s) { finalId = s.id; finalDate = s.date; }
 
-      const { data: sale, error: saleError } = await supabase.from("sales").insert([saleObj]).select().single();
-
-      if (saleError) {
-        if (!navigator.onLine || saleError.message.includes("fetch")) {
-          await offlineSync.queueSale(saleObj);
-          // Still show receipt from local data if offline
-          const saleTransaction: SaleTransaction = {
-            id: `offline-${Date.now()}`, date: new Date().toISOString(), items: cart,
-            subtotal, discount: Number(discountVal) || 0, discountType,
-            tradeInValue: tradeIn, tradeInDevice: tradeInDevice || undefined,
-            total, paymentMethod, customerName: customerName || undefined,
-            customerPhone: customerPhone || undefined,
-          };
-          setReceiptData(saleTransaction);
-          setCheckoutOpen(false);
-          return; 
-        }
-        throw saleError;
-      }
-
-      // 2. Update Inventory (Phones -> Sold, Accessories -> Stock Decrease)
       for (const item of cart) {
-        if (item.type === "phone") {
-          await supabase.from("phones").update({ status: "Sold" }).eq("id", item.id);
-        } else {
-          const acc = dbAccessories.find(a => a.id === item.id);
-          if (acc) {
-            await supabase.from("accessories").update({ stock: acc.stock - item.quantity }).eq("id", item.id);
-          }
+        if (item.type === "phone") await supabase.from("phones").update({ status: "Sold" }).eq("id", item.id);
+        else {
+           const { data: acc } = await supabase.from("accessories").select("stock").eq("id", item.id).single();
+           if (acc) await supabase.from("accessories").update({ stock: acc.stock - item.quantity }).eq("id", item.id);
         }
       }
 
-      const saleTransaction: SaleTransaction = {
-        id: sale.id, date: sale.date, items: cart,
-        subtotal, discount: Number(discountVal) || 0, discountType,
-        tradeInValue: tradeIn, tradeInDevice: tradeInDevice || undefined,
-        total, paymentMethod, customerName: customerName || undefined,
-        customerPhone: customerPhone || undefined,
-      };
-
-      setReceiptData(saleTransaction);
+      setReceiptData({ id: finalId, date: finalDate, customerName, customerPhone, items: [...cart], subtotal, total, paymentMethod });
       setCheckoutOpen(false);
-      toast.success(`Sale completed - ${formatLKR(total)}`);
-      fetchProducts(); // Refresh local list
-    } catch (error: any) {
-      toast.error("Error completing sale: " + error.message);
-    } finally {
-      setLoading(false);
-    }
+      toast.success("Sale Recorded Successfully");
+      fetchProducts();
+    } catch (e: any) { toast.error("Checkout Fail: " + e.message); }
+    finally { setLoading(false); }
   };
 
   const resetSale = () => {
-    setCart([]);
-    setDiscountVal("");
-    setTradeInVal("");
-    setTradeInDevice("");
-    setCustomerName("");
-    setCustomerPhone("");
-    setReceiptData(null);
-    setPaymentMethod(null);
-    setShowCatalog(false);
+    setCart([]); setDiscountVal(""); setTradeInVal(""); setTradeInDevice("");
+    setCustomerName(""); setCustomerPhone(""); setReceiptData(null);
+    setPaymentMethod(null); setShowCatalog(false);
   };
-
-  const handlePrint = () => window.print();
-
-  const quickItems = useMemo(() => {
-    return dbAccessories.slice(0, 8); // Showing first 8 accessories as quick add
-  }, [dbAccessories]);
 
   const handleWhatsApp = () => {
     if (!receiptData) return;
-    const lines = [
-      `🧾 *iHacs Receipt*`,
-      `Date: ${new Date(receiptData.date).toLocaleString("en-LK")}`,
-      ``,
-      ...receiptData.items.map((i) => `${i.name} x${i.quantity} - ${formatLKR(i.price * i.quantity)}${i.imei ? ` (IMEI: ${i.imei})` : ""}`),
-      ``,
-      `Subtotal: ${formatLKR(receiptData.subtotal)}`,
-      receiptData.discount > 0 ? `Discount: -${formatLKR(discountAmount)}` : "",
-      receiptData.tradeInValue > 0 ? `Trade-in: -${formatLKR(receiptData.tradeInValue)}` : "",
-      `*Total: ${formatLKR(receiptData.total)}*`,
-      `Payment: ${receiptData.paymentMethod}`,
-    ].filter(Boolean).join("\n");
-    const phone = receiptData.customerPhone ? receiptData.customerPhone.replace(/^0/, "94") : "";
+    const lines = [`🧾 *iHacs Receipt*`, `Ref: ${receiptData.id}`, `Date: ${new Date(receiptData.date).toLocaleString("en-LK")}`, ``, ...receiptData.items.map((i: any) => `${i.name} x${i.quantity} - ${formatLKR(i.price * i.quantity)}`), ``, `*Total: ${formatLKR(receiptData.total)}*`].join("\n");
+    const phone = customerPhone ? customerPhone.replace(/^0/, "94") : "";
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(lines)}`, "_blank");
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-[calc(100vh-105px)] lg:h-[calc(100vh-57px)]">
-      {/* Left - Invoice / Cart */}
-      <div className="flex-1 flex flex-col p-3 md:p-4 gap-3 overflow-y-auto min-h-0">
-        {/* Header - no New Invoice button here */}
-        <div>
-          <h2 className="text-xl font-bold text-foreground">Checkout</h2>
-          <p className="text-xs text-muted-foreground">Create a new sale</p>
-        </div>
-
-        {/* Customer Info */}
-        <div className="bg-card border border-border rounded-xl p-3 space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground">👤 Customer Details</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <input placeholder="Customer name" value={customerName} onChange={(e) => setCustomerName(e.target.value)}
-              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/30" />
-            <input placeholder="Phone (07xxxxxxxx)" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)}
-              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/30" />
+    <div className="flex flex-col h-[calc(100vh-65px)] bg-slate-50 relative overflow-hidden font-inter">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-slate-50 relative">
+        
+        {/* COMPACT TOP HEADER */}
+        <div className="bg-white border-b border-slate-200/60 p-3 pb-4 space-y-3 shrink-0 shadow-sm z-30">
+          <div className="flex items-center justify-between px-1">
+             <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center p-1.5"><img src="434757956_122139159188124564_4746025914570679797_n.jpg" alt="Logo" className="w-full h-full object-contain" /></div>
+                <h2 className="text-lg font-black text-slate-900 tracking-tight leading-none">Invoice Generator</h2>
+             </div>
+             <button onClick={() => setShowCatalog(true)} className="px-5 h-10 bg-slate-900 text-white rounded-xl font-black text-[9px] uppercase tracking-[0.1em] active:scale-95 transition-all flex items-center gap-2 ring-4 ring-slate-900/5">CATALOG HUB</button>
+          </div>
+          
+          <div className="relative group mx-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 group-focus-within:text-[#f36c21] transition-colors" />
+            <input placeholder="Search or scan imei..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:outline-none focus:border-[#f36c21] transition-all" />
           </div>
         </div>
 
-        {/* Add Items Button */}
-        <Button variant="outline" onClick={() => setShowCatalog(true)} className="w-full gap-2 border-dashed border-2">
-          <Plus className="w-4 h-4" /> Add Items to Invoice
-        </Button>
-
-        {/* Cart Items */}
-        <div className="flex-1 space-y-2 min-h-0">
-          {cart.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-12">
-              <ShoppingCart className="w-10 h-10 mb-3 opacity-30" />
-              <p className="text-sm">No items added yet</p>
-              <p className="text-xs mt-1">Tap "Add Items" to select products</p>
-            </div>
-          ) : (
-            cart.map((item) => (
-              <div key={item.id} className="bg-card border border-border rounded-xl p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">{item.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
-                    {item.imei && <p className="text-[10px] text-muted-foreground">IMEI: {item.imei}</p>}
-                    {item.warranty && <p className="text-[10px] text-primary">Warranty: {item.warranty}</p>}
-                  </div>
-                  <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-destructive">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    {item.type === "accessory" && (
-                      <>
-                        <button onClick={() => updateQty(item.id, -1)} className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center"><Minus className="w-3 h-3" /></button>
-                        <span className="text-sm font-semibold w-6 text-center">{item.quantity}</span>
-                        <button onClick={() => updateQty(item.id, 1)} className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center"><Plus className="w-3 h-3" /></button>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground">Rs.</span>
-                    <input
-                      type="number"
-                      value={item.price}
-                      onChange={(e) => updatePrice(item.id, Number(e.target.value))}
-                      className="w-24 text-right text-sm font-bold bg-background border border-border rounded-lg px-2 py-1 text-foreground focus:outline-none focus:ring-1 focus:ring-primary/30"
-                    />
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
+        {/* COMPACT CENTER: Cart Items */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50/30">
+           {cart.length === 0 ? (
+             <div className="flex flex-col items-center justify-center h-full opacity-20 py-20">
+               <ShoppingCart className="w-12 h-12 text-slate-900 mb-2" />
+               <p className="font-black text-slate-900 tracking-widest text-[9px]">EMPTY CART</p>
+             </div>
+           ) : (
+             cart.map((item) => (
+               <div key={item.id} className="bg-white border border-slate-100 rounded-[1.5rem] px-3 py-2.5 shadow-sm flex flex-col gap-2.5 animate-in fade-in slide-in-from-bottom-2">
+                 <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-base shrink-0">{item.emoji}</div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-black text-slate-900 truncate pr-2 leading-none" style={{ fontFamily: 'Outfit, sans-serif' }}>{item.name}</p>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter truncate opacity-70 mt-1">{item.imei ? `IMEI: ${item.imei}` : 'Accessory'}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => removeItem(item.id)} className="p-2 text-rose-500 bg-rose-50 border border-rose-100 rounded-lg active:scale-90 transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+                 </div>
+                 <div className="flex items-center justify-between bg-slate-50 rounded-xl p-2">
+                    <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
+                       <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 flex items-center justify-center text-slate-400 font-bold text-xs ring-1 ring-slate-100 rounded">ー</button>
+                       <span className="text-[10px] font-black min-w-[12px] text-center text-slate-900">{item.quantity}</span>
+                       <button onClick={() => updateQty(item.id, 1)} className="w-6 h-6 flex items-center justify-center text-slate-400 font-bold text-xs ring-1 ring-slate-100 rounded">＋</button>
+                    </div>
+                    <div className="flex items-center gap-1 text-right">
+                       <p className="text-[7px] font-black text-slate-400 uppercase leading-none mt-1">Price</p>
+                       <input type="number" value={item.price} onChange={(e) => updatePrice(item.id, Number(e.target.value))} className="w-20 text-right text-sm font-black bg-transparent border-none p-0 focus:ring-0 text-[#f36c21]" />
+                       <span className="text-[8px] font-black text-slate-300">LKR</span>
+                    </div>
+                 </div>
+               </div>
+             ))
+           )}
         </div>
 
-        {/* Exchange / Discount / Totals */}
+        {/* ULTRA-COMPACT BOTTOM SUMMARY */}
         {cart.length > 0 && (
-          <div className="bg-card border border-border rounded-xl p-3 space-y-3">
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-2">📱 Exchange / Trade-in</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <input placeholder="Exchange device (e.g. iPhone 11)" value={tradeInDevice} onChange={(e) => setTradeInDevice(e.target.value)}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/30" />
-                <div className="flex items-center gap-1 bg-background border border-border rounded-lg px-3 py-2">
-                  <Smartphone className="w-4 h-4 text-muted-foreground" />
-                  <input type="number" placeholder="Deduction (LKR)" value={tradeInVal} onChange={(e) => setTradeInVal(e.target.value)}
-                    className="flex-1 text-sm bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none" />
+          <div className="bg-white border-t border-slate-200 p-4 space-y-3 shrink-0 shadow-[0_-20px_40px_rgba(0,0,0,0.05)] rounded-t-[2.5rem] z-30">
+             <div className="grid grid-cols-2 gap-2">
+                <input placeholder="Name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="w-full text-xs font-black bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 transition-all" />
+                <input placeholder="Phone" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="w-full text-xs font-black bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 transition-all" />
+             </div>
+
+             <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50/50 rounded-2xl border border-slate-100">
+                <div className="space-y-2">
+                   <div className="flex items-center gap-1.5 text-[8px] font-black text-slate-400 uppercase"><FileText className="w-3 h-3" /> Exchange</div>
+                   <input placeholder="Device" value={tradeInDevice} onChange={(e) => setTradeInDevice(e.target.value)} className="w-full text-[10px] font-black bg-white border border-slate-200 rounded-lg px-3 py-2 placeholder:text-slate-300" />
+                   <input type="number" placeholder="LKR" value={tradeInVal} onChange={(e) => setTradeInVal(e.target.value)} className="w-full text-[10px] font-black bg-white border border-slate-200 rounded-lg px-3 py-2 placeholder:text-slate-300" />
                 </div>
-              </div>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-2">🏷️ Discount</p>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 bg-background border border-border rounded-lg px-3 py-2 flex-1">
-                  <Tag className="w-4 h-4 text-muted-foreground" />
-                  <input type="number" placeholder="Discount" value={discountVal} onChange={(e) => setDiscountVal(e.target.value)}
-                    className="flex-1 text-sm bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none" />
+                <div className="space-y-2">
+                   <div className="flex items-center justify-between text-[8px] font-black text-slate-400 uppercase">
+                      <div className="flex items-center gap-1.5"><Zap className="w-3 h-3 text-orange-400" /> Discount</div>
+                      <button onClick={() => setDiscountType(discountType === 'flat' ? 'percentage' : 'flat')} className="px-1.5 py-0.5 bg-slate-900 text-white rounded text-[7px]">{discountType === 'flat' ? 'LKR' : '%'}</button>
+                   </div>
+                   <input type="number" placeholder="Val" value={discountVal} onChange={(e) => setDiscountVal(e.target.value)} className="w-full text-[10px] font-black bg-white border border-slate-200 rounded-lg px-3 py-2 placeholder:text-slate-300" />
+                   <div className="h-[28px] border border-dashed border-slate-200 rounded-lg flex items-center justify-center opacity-40"><p className="text-[7px] font-black uppercase">Auto applied</p></div>
                 </div>
-                <button onClick={() => setDiscountType(discountType === "flat" ? "percentage" : "flat")}
-                  className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                    discountType === "percentage" ? "bg-primary/10 border-primary/30 text-primary" : "bg-background border-border text-muted-foreground"
-                  }`}>
-                  {discountType === "flat" ? "LKR" : "%"}
-                </button>
-              </div>
-            </div>
-            <div className="space-y-1 text-sm border-t border-border pt-3">
-              <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>{formatLKR(subtotal)}</span></div>
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-accent"><span>Discount ({discountType === "flat" ? "Flat" : `${discountVal}%`})</span><span>-{formatLKR(discountAmount)}</span></div>
-              )}
-              {tradeIn > 0 && (
-                <div className="flex justify-between text-primary"><span>Exchange ({tradeInDevice || "Trade-in"})</span><span>-{formatLKR(tradeIn)}</span></div>
-              )}
-              <div className="flex justify-between text-foreground font-bold text-lg pt-1 border-t border-border"><span>Total</span><span>{formatLKR(total)}</span></div>
-            </div>
-            <Button onClick={handleCheckout} className="w-full h-12 text-base font-semibold">Charge {formatLKR(total)}</Button>
+             </div>
+             
+             <div className="flex items-center justify-between pb-1 pt-1">
+                <div className="flex-1">
+                   <p className="text-[8px] font-black text-slate-400 uppercase leading-none mb-0.5">Grand Total</p>
+                   <p className="text-2xl font-black text-slate-900 tracking-tighter leading-tight">{formatLKR(total)}</p>
+                </div>
+                <button onClick={() => setCheckoutOpen(true)} className="px-8 h-14 bg-[#f36c21] text-white rounded-2xl font-black text-lg shadow-xl shadow-orange-100 active:scale-95 transition-all flex items-center gap-2 uppercase tracking-widest">PAY</button>
+             </div>
           </div>
         )}
       </div>
 
-      {/* Right - Quick Add (desktop only) */}
-      <div className="hidden lg:flex w-72 border-l border-border bg-card flex-col p-3 gap-2 overflow-y-auto">
-        <p className="text-xs font-semibold text-muted-foreground mb-1">⚡ Quick Add</p>
-        {quickItems.map((a) => (
-          <button key={a.id} onClick={() => addToCart({ id: a.id, type: "accessory", name: a.name, price: a.price, emoji: a.emoji, sub: "", category: a.category })}
-            className="flex items-center gap-2 px-3 py-2.5 bg-background border border-border rounded-lg text-sm hover:border-primary/50 hover:bg-primary/5 transition-colors">
-            <span>{a.emoji}</span>
-            <span className="flex-1 text-left text-foreground font-medium truncate">{a.name.split(" - ")[0]}</span>
-            <span className="text-xs text-muted-foreground">{formatLKR(a.price)}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Product Catalog Dialog - with categories like inventory */}
+      {/* DIALOGS REMAIN BUILT-IN: CATALOG, CHECKOUT, RECEIPT */}
       <Dialog open={showCatalog} onOpenChange={setShowCatalog}>
-        <DialogContent className="sm:max-w-lg h-[640px] max-h-[90vh] flex flex-col p-0">
-          <DialogHeader className="p-4 pb-0">
-            <DialogTitle>Select Items</DialogTitle>
-          </DialogHeader>
-
-          {/* Catalog Tabs: Phones / Accessories */}
-          <div className="grid grid-cols-2 gap-2 px-4 pt-3">
-            <button onClick={() => setCatalogTab("phones")}
-              className={`flex items-center justify-center gap-2 h-11 rounded-xl text-sm font-semibold transition-all border-2 ${
-                catalogTab === "phones" ? "bg-primary text-primary-foreground border-primary shadow-md" : "bg-card border-border text-muted-foreground hover:border-primary/20"
-              }`}>
-              <Smartphone className="w-4 h-4" /> Phones
-            </button>
-            <button onClick={() => setCatalogTab("accessories")}
-              className={`flex items-center justify-center gap-2 h-11 rounded-xl text-sm font-semibold transition-all border-2 ${
-                catalogTab === "accessories" ? "bg-primary text-primary-foreground border-primary shadow-md" : "bg-card border-border text-muted-foreground hover:border-primary/20"
-              }`}>
-              <Package className="w-4 h-4" /> Accessories
-            </button>
-          </div>
-
-          {/* Sub-category buttons */}
-          <div className="px-4 pt-4">
-            {catalogTab === "phones" ? (
-              <div className="grid grid-cols-3 gap-2">
-                {(["iPhone", "Android", "Other"] as PhoneCat[]).map((cat) => {
-                  const Icon = phoneCatIcons[cat];
-                  return (
-                    <button key={cat} onClick={() => setPhoneCat(cat)}
-                      className={`flex flex-col items-center justify-center gap-2 h-20 w-full rounded-xl text-sm font-bold transition-all border-2 ${
-                        phoneCat === cat ? "bg-emerald-500 text-white border-emerald-400 shadow-md" : "bg-card border-border text-muted-foreground hover:border-emerald-200"
-                      }`}>
-                      <Icon className="w-6 h-6" />{cat}
-                    </button>
-                  );
-                })}
+        <DialogContent className="sm:max-w-lg h-[85vh] flex flex-col p-0 rounded-[2.5rem]">
+           <div className="p-5 pb-2 space-y-4">
+              <div className="px-1">
+                 <div className="flex items-center gap-2 p-1.5 bg-slate-100 rounded-2xl w-full border border-slate-200/50">
+                    <button onClick={() => setCatalogTab("phones")} className={`flex-1 h-12 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${catalogTab === "phones" ? "bg-white text-slate-900 shadow-lg shadow-slate-200" : "text-slate-400"}`}>Phones</button>
+                    <button onClick={() => setCatalogTab("accessories")} className={`flex-1 h-12 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${catalogTab === "accessories" ? "bg-white text-slate-900 shadow-lg shadow-slate-200" : "text-slate-400"}`}>Accessories</button>
+                 </div>
               </div>
-            ) : (
-              <div className="grid grid-cols-4 gap-2">
-                {["All", ...accCategories].map((cat) => {
-                  const Icon = accCatIcons[cat] || Package;
-                  return (
-                    <button key={cat} onClick={() => setAccCat(cat)}
-                      className={`flex flex-col items-center justify-center gap-1 h-16 w-full rounded-xl text-[10px] font-bold leading-tight transition-all border-2 ${
-                        accCat === cat ? "bg-emerald-500 text-white border-emerald-400 shadow-md" : "bg-card border-border text-muted-foreground hover:border-emerald-200"
-                      }`}>
-                      <Icon className="w-5 h-5 mb-0.5" />{cat === "Tempered Glasses" ? "T.Glass" : cat === "Back Covers" ? "Covers" : cat === "Power Banks" ? "P.Bank" : cat}
-                    </button>
-                  );
-                })}
+              <div className="px-1">
+                 {catalogTab === "phones" ? (
+                   <div className="grid grid-cols-3 gap-2 pb-2">
+                      {(["iPhone", "Android", "Other"] as PhoneCat[]).map((cat) => {
+                         const Icon = phoneCatIcons[cat] || Smartphone;
+                         return (
+                           <button key={cat} onClick={() => setPhoneCat(cat)} className={`flex flex-col items-center justify-center gap-1.5 h-20 rounded-2xl border-2 transition-all active:scale-95 ${phoneCat === cat ? 'bg-slate-900 border-slate-900 text-white shadow-lg' : 'bg-white border-slate-50 text-slate-400'}`}>
+                              <Icon className="w-5 h-5" />
+                              <span className="text-[9px] font-black uppercase">{cat}</span>
+                           </button>
+                         );
+                      })}
+                   </div>
+                 ) : (
+                   <div className="grid grid-cols-4 gap-2 max-h-[140px] overflow-y-auto pr-1 pb-2">
+                      {["All", ...accCategories].map((cat) => {
+                         const Icon = accCatIcons[cat] || Package;
+                         return (
+                           <button key={cat} onClick={() => setAccCat(cat)} className={`flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl border transition-all active:scale-95 ${accCat === cat ? 'bg-[#f36c21] border-[#f36c21] text-white shadow-lg shadow-orange-100' : 'bg-white border-slate-100 text-slate-400'}`}>
+                              <Icon className="w-4 h-4" />
+                              <span className="text-[8px] font-black uppercase text-center leading-none px-1">{cat.split(' ')[0]}</span>
+                           </button>
+                         );
+                      })}
+                   </div>
+                 )}
               </div>
-            )}
-          </div>
-
-          {/* Search */}
-          <div className="relative px-4 pt-2">
-            <Search className="absolute left-7 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground mt-1" />
-            <input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
-          </div>
-
-          {/* Product list */}
-          <div className="flex-1 overflow-y-auto space-y-1.5 px-4 py-2 pb-4">
-            {catalogFiltered.map((p) => (
-              <button key={p.id} onClick={() => { addToCart(p); }}
-                className="w-full flex items-center gap-3 p-3 bg-background border border-border rounded-lg hover:border-primary/40 hover:shadow-sm transition-all text-left">
-                <span className="text-xl">{p.emoji}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{p.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{p.sub}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-foreground">{formatLKR(p.price)}</p>
-                  {p.type === "phone" && <span className="text-[10px] text-primary font-medium">PHONE</span>}
-                </div>
-              </button>
-            ))}
-            {catalogFiltered.length === 0 && (
-              <div className="text-center py-12 text-muted-foreground text-sm">No products found</div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Checkout Dialog */}
-      <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-center">Charge <span className="text-primary">{formatLKR(total)}</span></DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <p className="text-sm text-muted-foreground text-center">Select payment method</p>
-            <div className="grid grid-cols-3 gap-3">
-              {["Cash", "Card", "Mobile Pay"].map((m) => (
-                <button key={m} onClick={() => setPaymentMethod(m)}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                    paymentMethod === m ? "border-primary bg-primary/5 shadow-md" : "border-border hover:border-primary/30"
-                  }`}>
-                  <span className="text-2xl">{m === "Cash" ? "💵" : m === "Card" ? "💳" : "📲"}</span>
-                  <span className="text-sm font-medium">{m}</span>
+           </div>
+           <div className="flex-1 overflow-y-auto p-5 space-y-2 bg-slate-50/50 border-t border-slate-100 rounded-t-[2.5rem]">
+              {catalogFiltered.map(p => (
+                <button key={p.id} onClick={() => { addToCart(p); }} className="w-full flex items-center gap-3 p-3.5 bg-white border border-slate-100 rounded-2xl hover:border-[#f36c21] transition-all text-left group">
+                   <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-xl group-hover:bg-orange-50 transition-all">{p.emoji}</div>
+                   <div className="flex-1 min-w-0"><p className="text-sm font-black text-slate-900 truncate" style={{ fontFamily: 'Outfit, sans-serif' }}>{p.name}</p><p className="text-[9px] font-bold text-slate-400 truncate mt-0.5">{p.sub}</p></div>
+                   <p className="text-sm font-black text-slate-900">{formatLKR(p.price)}</p>
                 </button>
               ))}
-            </div>
-            <Button onClick={completeSale} disabled={!paymentMethod} className="w-full h-12 text-base font-semibold">Confirm Payment</Button>
-          </div>
+           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Receipt Dialog */}
+      <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
+        <DialogContent className="sm:max-w-md rounded-[2.5rem] p-6 text-center">
+            <h2 className="text-xl font-black mb-1">Confirm Total</h2>
+            <p className="text-3xl font-black text-[#f36c21] mb-6">{formatLKR(total)}</p>
+            <div className="grid grid-cols-3 gap-3 mb-6">
+               {["Cash", "Card", "Mobile"].map(m => (
+                 <button key={m} onClick={() => setPaymentMethod(m)} className={`h-20 rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${paymentMethod === m ? 'border-[#f36c21] bg-orange-50 shadow-md' : 'border-slate-100'}`}>
+                    <span className="text-xl">{m === 'Cash' ? '💵' : m === 'Card' ? '💳' : '📱'}</span>
+                    <span className="text-[9px] font-black uppercase">{m}</span>
+                 </button>
+               ))}
+            </div>
+            <Button onClick={completeSale} disabled={!paymentMethod || loading} className="w-full h-14 bg-slate-900 rounded-xl text-white font-black text-base shadow-xl">{loading ? <Loader2 className="animate-spin" /> : 'Confirm Order'}</Button>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!receiptData} onOpenChange={() => resetSale()}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto bg-white border-2">
-          <DialogHeader>
-            <DialogTitle className="text-center font-bold text-xl text-black">📄 Invoice</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto bg-white border-none rounded-[2rem] p-6 shadow-2xl">
           {receiptData && (
-            <div ref={receiptRef} className="space-y-4 py-2 text-black">
-              <div className="text-center border-b border-dashed border-zinc-300 pb-4">
-                <img src="434757956_122139159188124564_4746025914570679797_n.jpg" alt="Logo" className="h-20 w-20 mx-auto mb-2 object-contain" />
-                <p className="text-xl font-black">iHacs Solutions</p>
-                <p className="text-[11px] font-semibold text-zinc-600">Pussellawa, Sri Lanka</p>
-                <p className="text-[11px] font-semibold text-zinc-600">076 902 9003 / 075 098 5291</p>
-                <p className="text-[10px] text-zinc-500">ihackssolution@gmail.com</p>
-                <div className="mt-3 py-1 bg-zinc-100 rounded text-[10px] font-bold text-zinc-700">
-                  {new Date(receiptData.date).toLocaleString("en-LK")}
-                </div>
+            <div className="space-y-5">
+              <div className="text-center pb-5 border-b border-dashed border-slate-200">
+                <img src="434757956_122139159188124564_4746025914570679797_n.jpg" alt="Logo" className="h-12 w-12 mx-auto mb-3" />
+                <h2 className="text-xl font-black">iHacs Solutions</h2>
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Invoice Receipt</p>
               </div>
-              {receiptData.customerName && (
-                <div className="text-xs text-muted-foreground">
-                  <span>Customer: {receiptData.customerName}</span>
-                  {receiptData.customerPhone && <span> · {receiptData.customerPhone}</span>}
-                </div>
-              )}
-              <div className="space-y-2">
-                {receiptData.items.map((item, i) => (
-                  <div key={i} className="flex justify-between text-sm">
-                    <div>
-                      <p className="text-foreground font-semibold">{item.name} ×{item.quantity}</p>
-                      {item.imei && <p className="text-[10px] text-muted-foreground">IMEI: {item.imei}</p>}
-                    </div>
-                    <span className="font-medium text-foreground">{formatLKR(item.price * item.quantity)}</span>
+              <div className="space-y-3">
+                {receiptData.items.map((i: any, idx: number) => (
+                  <div key={idx} className="flex justify-between items-start gap-4">
+                    <div className="flex-1"><p className="text-sm font-black text-slate-900 leading-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>{i.name} x{i.quantity}</p></div>
+                    <p className="text-sm font-black text-slate-900">{formatLKR(i.price * i.quantity)}</p>
                   </div>
                 ))}
               </div>
-              <div className="border-t border-dashed border-border pt-3 space-y-1 text-sm">
-                <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>{formatLKR(receiptData.subtotal)}</span></div>
-                {receiptData.discount > 0 && (
-                  <div className="flex justify-between text-accent"><span>Discount</span><span>-{formatLKR(discountAmount)}</span></div>
-                )}
-                {receiptData.tradeInValue > 0 && (
-                  <div className="flex justify-between text-primary"><span>Trade-in ({receiptData.tradeInDevice})</span><span>-{formatLKR(receiptData.tradeInValue)}</span></div>
-                )}
-                <div className="flex justify-between font-bold text-lg text-foreground pt-1"><span>Total</span><span>{formatLKR(receiptData.total)}</span></div>
-                <p className="text-xs text-muted-foreground text-center pt-1">Paid via {receiptData.paymentMethod}</p>
+              <div className="pt-5 border-t border-dashed border-slate-200 space-y-2 font-black text-slate-900">
+                 <div className="flex justify-between items-end">
+                    <p className="text-[9px] uppercase tracking-widest leading-none">Total Amount</p>
+                    <p className="text-2xl leading-none">{formatLKR(receiptData.total)}</p>
+                 </div>
               </div>
-              <div className="flex gap-2 pt-2">
-                <Button onClick={handlePrint} variant="outline" className="flex-1 gap-1.5 text-xs"><Printer className="w-4 h-4" /> Print</Button>
-                <Button onClick={handleWhatsApp} variant="outline" className="flex-1 gap-1.5 text-xs"><Share2 className="w-4 h-4" /> WhatsApp</Button>
-                <Button onClick={resetSale} className="flex-1 gap-1.5 text-xs"><FileText className="w-4 h-4" /> New Sale</Button>
+              <div className="grid grid-cols-3 gap-2 pt-2">
+                <Button onClick={() => window.print()} variant="outline" className="h-12 rounded-xl flex-col gap-1 text-[7px] font-black uppercase"><Printer className="w-3.5 h-3.5" /> Print</Button>
+                <Button onClick={handleWhatsApp} variant="outline" className="h-12 rounded-xl flex-col gap-1 text-[7px] font-black uppercase"><Share2 className="w-3.5 h-3.5 text-emerald-500" /> Share</Button>
+                <Button onClick={resetSale} className="h-12 rounded-xl flex-col gap-1 text-[7px] font-black uppercase bg-slate-900 text-white"><FileText className="w-3.5 h-3.5" /> New</Button>
               </div>
             </div>
           )}

@@ -219,9 +219,8 @@ const Inventory = () => {
         </TabsList>
 
         {/* PHONES TAB */}
-        <TabsContent value="phones" className="space-y-3">
-          {/* Sub-tabs: iPhone / Android / Other - LARGE non-scrollable */}
-          <div className="grid grid-cols-3 gap-3">
+        <TabsContent value="phones" className="space-y-4">
+          <div className="grid grid-cols-3 gap-2">
             {phoneCategoryOptions.map((cat) => {
               const count = phoneList.filter((p) => p.category === cat).length;
               const Icon = phoneCategoryIcons[cat];
@@ -229,133 +228,167 @@ const Inventory = () => {
                 <button
                   key={cat}
                   onClick={() => setPhoneSubTab(cat)}
-                  className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl text-sm font-bold transition-all border-2 min-h-[110px] ${
+                  className={`flex flex-col items-center justify-center p-3 rounded-2xl text-xs font-black transition-all border-2 min-h-[90px] group ${
                     phoneSubTab === cat
-                      ? "bg-primary text-primary-foreground shadow-lg border-primary"
-                      : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-primary/30"
+                      ? "bg-[#f36c21] text-white shadow-xl shadow-orange-100 border-[#f36c21]"
+                      : "bg-white border-slate-100 text-slate-400 hover:text-slate-600 hover:border-slate-300"
                   }`}
                 >
-                  <Icon className="w-8 h-8" />
-                  <span className="text-base">{cat}</span>
-                  <span className={`text-xs font-normal ${phoneSubTab === cat ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                    {count} items
-                  </span>
+                  <Icon className={`w-6 h-6 mb-1 ${phoneSubTab === cat ? "text-white" : "text-slate-300 group-hover:text-orange-400"}`} />
+                  <span className="mb-0.5 tracking-tight uppercase tracking-widest leading-none">{cat}</span>
+                  <p className={`text-[10px] font-bold ${phoneSubTab === cat ? "text-orange-100" : "text-slate-400"}`}>{count}</p>
                 </button>
               );
             })}
           </div>
 
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                placeholder="Search brand, model, IMEI..."
-                value={phoneSearch}
-                onChange={(e) => setPhoneSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-            </div>
-            <Button size="sm" onClick={() => { setIsNewPhone(true); setEditPhone(newPhone()); }} className="gap-1">
-              <Plus className="w-4 h-4" /> Add
-            </Button>
+          <div className="relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-[#f36c21] transition-colors" />
+            <input
+              placeholder={`Search ${phoneSubTab}...`}
+              value={phoneSearch}
+              onChange={(e) => setPhoneSearch(e.target.value)}
+              className="w-full pl-12 pr-4 py-4 bg-white border border-slate-100 rounded-2xl text-sm font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-[#f36c21] transition-all placeholder:text-slate-300 placeholder:font-medium"
+            />
           </div>
 
-          <div className="space-y-2">
-            {filteredPhones.map((phone) => (
-              <div key={phone.id} className="bg-card border border-border rounded-xl p-3 flex items-start gap-3">
+          <div className="space-y-2 pb-24">
+            {filteredPhones.map((p) => (
+              <div 
+                key={p.id} 
+                onClick={() => { setIsNewPhone(false); setEditPhone(p); }}
+                className="bg-white border border-slate-100 rounded-2xl p-4 flex items-center gap-4 active:scale-[0.98] transition-all relative overflow-hidden group hover:border-orange-200 shadow-sm"
+              >
+                <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center text-xl grayscale group-hover:grayscale-0 transition-all shrink-0">
+                  {p.brand === "Apple" ? "🍎" : "🤖"}
+                </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-base">📱</span>
-                    <p className="font-semibold text-sm text-foreground">{phone.brand} {phone.model}</p>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                      phone.status === "In Stock" ? "bg-success/10 text-success" :
-                      phone.status === "Sold" ? "bg-muted text-muted-foreground" :
-                      "bg-accent/10 text-accent"
-                    }`}>{phone.status}</span>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-sm md:text-base leading-none truncate text-slate-800 font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>{p.model}</p>
+                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter shrink-0 ${
+                      p.status === "In Stock" ? "bg-emerald-100 text-emerald-700 font-bold" : "bg-slate-100 text-slate-500 font-bold"
+                    }`}>
+                      {p.status}
+                    </span>
                   </div>
-                  <div className="flex flex-wrap gap-x-3 gap-y-0 text-[11px] text-muted-foreground mt-0.5">
-                    <span>IMEI: {phone.imei}</span>
-                    <span>{phone.condition} · {phone.storage} · {phone.color}</span>
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 truncate">
+                    <span className="uppercase">{p.brand}</span>
+                    <span className="opacity-30">•</span>
+                    <span>{p.storage}</span>
+                    <span className="opacity-30">•</span>
+                    <span className="text-orange-500/50">IMEI: {p.imei.slice(-4).padStart(p.imei.length, "•")}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <div className="text-right">
-                    <p className="text-xs font-bold text-foreground">{formatLKR(phone.price)}</p>
-                    <p className="text-[10px] text-muted-foreground">Cost: {formatLKR(phone.cost)}</p>
-                  </div>
-                  <button onClick={() => { setIsNewPhone(false); setEditPhone(phone); }} className="p-1.5 rounded-lg hover:bg-secondary"><Edit2 className="w-3.5 h-3.5 text-muted-foreground" /></button>
-                  <button onClick={() => deletePhone(phone.id)} className="p-1.5 rounded-lg hover:bg-destructive/10"><Trash2 className="w-3.5 h-3.5 text-destructive" /></button>
+                <div className="text-right shrink-0">
+                  <p className="text-base md:text-lg font-black text-slate-900 leading-none">{formatLKR(p.price)}</p>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); if(confirm("Delete this phone?")) deletePhone(p.id); }}
+                    className="mt-1.5 px-3 py-1 bg-rose-50 border border-rose-100 rounded-lg text-[9px] font-black text-rose-500 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-all active:scale-90"
+                  >
+                    Delete Phone
+                  </button>
                 </div>
               </div>
             ))}
             {filteredPhones.length === 0 && (
-              <div className="text-center py-10 text-muted-foreground text-sm">No {phoneSubTab} phones found</div>
+              <div className="text-center py-20 bg-white/50 border border-dashed border-slate-200 rounded-2xl text-slate-400 text-sm font-bold">No {phoneSubTab} phones matching your search</div>
             )}
           </div>
+
+          {/* Floating Action Button (FAB) */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setIsNewPhone(true); setEditPhone(newPhone()); }}
+            className="fixed bottom-28 right-6 w-16 h-16 bg-[#f36c21] text-white rounded-full shadow-2xl shadow-orange-300 flex items-center justify-center active:scale-95 transition-all z-[60] hover:bg-orange-600 ring-4 ring-white"
+          >
+            <Plus className="w-8 h-8 stroke-[3]" />
+          </button>
         </TabsContent>
 
         {/* ACCESSORIES TAB */}
-        <TabsContent value="accessories" className="space-y-3">
-          {/* Sub-tabs - 3 columns, large, non-scrollable, "All" at end */}
-          <div className="grid grid-cols-3 gap-3">
-            {[...accCategoryOptions, "All"].map((cat) => {
+        <TabsContent value="accessories" className="space-y-4">
+          <div className="grid grid-cols-4 gap-2">
+            {["All", ...accCategoryOptions].map((cat) => {
               const count = cat === "All" ? accList.length : accList.filter((a) => a.category === cat).length;
               const Icon = accCategoryIcons[cat] || Package;
               return (
                 <button
                   key={cat}
                   onClick={() => setAccSubTab(cat)}
-                  className={`flex flex-col items-center justify-center gap-1.5 p-4 rounded-xl text-sm font-bold transition-all border-2 min-h-[100px] ${
+                  className={`flex flex-col items-center justify-center p-2 rounded-2xl text-[9px] font-black transition-all border-2 min-h-[75px] group ${
                     accSubTab === cat
-                      ? "bg-primary text-primary-foreground shadow-lg border-primary"
-                      : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-primary/30"
+                      ? "bg-slate-900 text-white shadow-xl shadow-slate-200 border-slate-900"
+                      : "bg-white border-slate-100 text-slate-400 hover:text-slate-600 hover:border-slate-300"
                   }`}
                 >
-                  <Icon className="w-7 h-7" />
-                  <span className="text-center leading-tight text-xs font-semibold">{cat}</span>
-                  <span className={`text-[10px] font-normal ${accSubTab === cat ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{count}</span>
+                  <Icon className={`w-5 h-5 mb-1 ${accSubTab === cat ? "text-white" : "text-slate-300 group-hover:text-orange-400"}`} />
+                  <span className="tracking-tight uppercase leading-none text-center px-1">{cat.split(' ')[0]}</span>
+                  <p className={`text-[8px] font-bold mt-1 ${accSubTab === cat ? "text-slate-300" : "text-slate-400"}`}>{count}</p>
                 </button>
               );
             })}
           </div>
 
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                placeholder="Search name, SKU..."
-                value={accSearch}
-                onChange={(e) => setAccSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-            </div>
-            <Button size="sm" onClick={() => { setIsNewAcc(true); setEditAcc(newAcc()); }} className="gap-1">
-              <Plus className="w-4 h-4" /> Add
-            </Button>
+          <div className="relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-[#f36c21] transition-colors" />
+            <input
+              placeholder="Search accessories..."
+              value={accSearch}
+              onChange={(e) => setAccSearch(e.target.value)}
+              className="w-full pl-12 pr-4 py-4 bg-white border border-slate-100 rounded-2xl text-sm font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-[#f36c21] transition-all placeholder:text-slate-300 placeholder:font-medium"
+            />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {filteredAcc.map((acc) => (
-              <div key={acc.id} className="bg-card border border-border rounded-xl p-3 flex items-center gap-3">
-                <span className="text-xl">{acc.emoji}</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pb-24">
+            {filteredAcc.map((a) => (
+              <div 
+                key={a.id} 
+                onClick={() => { setIsNewAcc(false); setEditAcc(a); }}
+                className="bg-white border border-slate-100 rounded-2xl p-4 flex items-center gap-4 active:scale-[0.98] transition-all relative overflow-hidden group hover:border-orange-200 shadow-sm"
+              >
+                <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-2xl grayscale group-hover:grayscale-0 transition-all font-bold">
+                  {a.emoji}
+                </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{acc.name}</p>
-                  <p className="text-[11px] text-muted-foreground">SKU: {acc.sku} · {acc.category}</p>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-sm md:text-base leading-none truncate text-slate-800 font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>{a.name}</p>
+                    <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter shrink-0 flex items-center gap-1 ${
+                      Number(a.stock) > Number(a.lowStockThreshold || 5) 
+                        ? "bg-emerald-100 text-emerald-700" 
+                        : "bg-rose-100 text-rose-700 border border-rose-200 animate-pulse"
+                    }`}>
+                      {Number(a.stock) <= Number(a.lowStockThreshold || 5) && <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]" />}
+                      {a.stock} {Number(a.stock) <= Number(a.lowStockThreshold || 5) ? "LOW STOCK" : "IN STOCK"}
+                    </span>
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter truncate opacity-70 flex items-center gap-1.5">
+                    <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[8px]">SKU: {a.sku}</span>
+                    <span className="opacity-30">•</span>
+                    <span>{a.category}</span>
+                  </div>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-xs font-bold text-foreground">{formatLKR(acc.price)}</p>
-                  <p className={`text-[11px] font-bold ${acc.stock <= acc.lowStockThreshold ? (acc.stock <= 3 ? "text-destructive" : "text-accent") : "text-success"}`}>
-                    {acc.stock} in stock
-                  </p>
+                <div className="text-right shrink-0">
+                  <p className="text-base md:text-lg font-black text-slate-900 leading-none">{formatLKR(a.price)}</p>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); deleteAcc(a.id); }}
+                    className="mt-1 text-[9px] font-black text-red-500 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    Delete Item
+                  </button>
                 </div>
-                <button onClick={() => { setIsNewAcc(false); setEditAcc(acc); }} className="p-1.5 rounded-lg hover:bg-secondary"><Edit2 className="w-3.5 h-3.5 text-muted-foreground" /></button>
-                <button onClick={() => deleteAcc(acc.id)} className="p-1.5 rounded-lg hover:bg-destructive/10"><Trash2 className="w-3.5 h-3.5 text-destructive" /></button>
               </div>
             ))}
             {filteredAcc.length === 0 && (
-              <div className="col-span-2 text-center py-10 text-muted-foreground text-sm">No accessories found</div>
+              <div className="col-span-full text-center py-20 bg-white/50 border border-dashed border-slate-200 rounded-2xl text-slate-400 text-sm font-bold">No items matching your search</div>
             )}
           </div>
+
+          {/* Floating Action Button (FAB) for Acc */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setIsNewAcc(true); setEditAcc(newAcc()); }}
+            className="fixed bottom-28 right-6 w-16 h-16 bg-[#f36c21] text-white rounded-full shadow-2xl shadow-orange-300 flex items-center justify-center active:scale-95 transition-all z-[60] hover:bg-orange-600 ring-4 ring-white"
+          >
+            <Plus className="w-8 h-8 stroke-[3]" />
+          </button>
         </TabsContent>
       </Tabs>
 

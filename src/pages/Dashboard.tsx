@@ -27,6 +27,7 @@ const Dashboard = () => {
   const [sales, setSales] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [accessories, setAccessories] = useState<Accessory[]>([]);
+  const [phones, setPhones] = useState<Phone[]>([]);
 
   const now = new Date();
   const thisMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -42,10 +43,12 @@ const Dashboard = () => {
       const { data: salesData } = await supabase.from("sales").select("*").order("date", { ascending: false });
       const { data: expensesData } = await supabase.from("expenses").select("*").order("date", { ascending: false });
       const { data: accData } = await supabase.from("accessories").select("*");
+      const { data: phoneData } = await supabase.from("phones").select("*").eq("status", "In Stock");
 
       setSales(salesData || []);
       setExpenses(expensesData || []);
       setAccessories(accData || []);
+      setPhones(phoneData || []);
     } catch (error: any) {
       toast.error("Error loading dashboard: " + error.message);
     } finally {
@@ -77,7 +80,7 @@ const Dashboard = () => {
       totalExpenses, 
       netProfit, 
       todaySalesCount: todaySales.length,
-      weekTotal: 0 // Placeholder or calculate weekly total if needed
+      weekTotal: 0
     };
   }, [sales, expenses, todayStr, thisMonthStr]);
 
@@ -113,7 +116,21 @@ const Dashboard = () => {
     return Object.entries(methodMap).map(([name, data]) => ({ name, value: data.total, count: data.count }));
   }, [sales, thisMonthStr]);
 
-  const lowStockItems = accessories.filter((a) => a.stock <= a.lowStockThreshold);
+  const lowStockItems = useMemo(() => {
+    const lowAcc = accessories
+      .filter((a) => a.stock <= a.lowStockThreshold)
+      .map(a => ({ id: a.id, name: a.name, stock: a.stock, emoji: a.emoji, threshold: a.lowStockThreshold }));
+    
+    // Also check for major phone brands with critically low inventory (< 2 units)
+    const phoneAlerts: any[] = [];
+    ["Apple", "Samsung"].forEach(brand => {
+      const count = phones.filter(p => p.brand === brand).length;
+      if (count < 2) phoneAlerts.push({ id: brand, name: `${brand} Inventory`, stock: count, emoji: brand === "Apple" ? "🍎" : "📱", threshold: 2 });
+    });
+
+    return [...lowAcc, ...phoneAlerts];
+  }, [accessories, phones]);
+
   const recentSales = sales.slice(0, 5);
 
   const paymentIcons: Record<string, React.ElementType> = { "Cash": Banknote, "Card": CreditCard, "Mobile Pay": Smartphone };
@@ -348,44 +365,63 @@ const Dashboard = () => {
       </div>
 
       {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pb-8">
         <div className="bg-card border border-border rounded-xl p-3">
           <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="w-4 h-4 text-destructive" />
+            <div className="relative">
+              <AlertTriangle className="w-4 h-4 text-destructive" />
+              {lowStockItems.length > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-destructive rounded-full animate-ping" />}
+            </div>
             <h3 className="text-sm font-semibold text-foreground">Low Stock Alerts</h3>
-            <span className="bg-destructive/10 text-destructive text-[10px] font-bold px-1.5 py-0.5 rounded-full">{lowStockItems.length}</span>
+            <span className="bg-destructive/10 text-destructive text-[10px] font-bold px-1.5 py-0.5 rounded-full">{lowStockItems.length} items</span>
           </div>
-          <div className="space-y-1.5">
-            {lowStockItems.map((item) => (
-              <div key={item.id} className="flex items-center justify-between bg-background rounded-lg p-2.5">
-                <div className="flex items-center gap-2">
-                  <span>{item.emoji}</span>
-                  <div>
-                    <p className="text-xs font-medium text-foreground">{item.name}</p>
-                    <p className="text-[10px] text-muted-foreground">SKU: {item.sku}</p>
+          <div className="space-y-1.5 overflow-y-auto max-h-[300px] pr-1 scrollbar-thin">
+            {lowStockItems.length === 0 ? (
+              <div className="text-center py-10 opacity-30">
+                <Package className="w-8 h-8 mx-auto mb-2" />
+                <p className="text-[10px] font-bold uppercase tracking-widest">Inventory Healthy</p>
+              </div>
+            ) : (
+              lowStockItems.map((item, idx) => (
+                <div key={`${item.id}-${idx}`} className="flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-lg p-2.5 transition-colors hover:bg-slate-50">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{item.emoji}</span>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 leading-tight">{item.name}</p>
+                      <p className="text-[9px] text-muted-foreground uppercase font-black tracking-tighter opacity-70">
+                         {item.type || "Inventory"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-xs font-black ${Number(item.stock) <= 2 ? "text-destructive" : "text-[#f36c21]"}`}>{item.stock} left</p>
+                    <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest">Stock</p>
                   </div>
                 </div>
-                <span className={`text-xs font-bold ${item.stock <= 3 ? "text-destructive" : "text-accent"}`}>{item.stock} left</span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
+        
         <div className="bg-card border border-border rounded-xl p-3">
           <div className="flex items-center gap-2 mb-3">
             <Package className="w-4 h-4 text-primary" />
             <h3 className="text-sm font-semibold text-foreground">Recent Transactions</h3>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 overflow-y-auto max-h-[300px] pr-1">
             {recentSales.map((sale) => (
-              <div key={sale.id} className="flex items-center justify-between bg-background rounded-lg p-2.5">
+              <div key={sale.id} className="flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-lg p-2.5">
                 <div>
-                  <p className="text-xs font-medium text-foreground">{sale.customerName || "Walk-in Customer"}</p>
+                  <p className="text-xs font-bold text-slate-800 leading-tight">{sale.customer_name || "Walk-in Guest"}</p>
                   <p className="text-[10px] text-muted-foreground">
-                    {new Date(sale.date).toLocaleString("en-LK", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                    {" · "}{sale.paymentMethod}
+                    {new Date(sale.date).toLocaleString("en-LK", { month: "short", day: "numeric" })}
+                    {" · "}{sale.payment_method}
                   </p>
                 </div>
-                <span className="text-xs font-bold text-foreground">{formatLKR(sale.total)}</span>
+                <div className="text-right">
+                  <p className="text-xs font-black text-slate-900">{formatLKR(sale.total)}</p>
+                  <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest leading-none mt-0.5">Paid</p>
+                </div>
               </div>
             ))}
           </div>

@@ -14,67 +14,64 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Top Header */}
-      <header className="bg-card border-b border-border px-3 py-2 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center gap-2">
-          <img src="434757956_122139159188124564_4746025914570679797_n.jpg" alt="iHacs Logo" className="h-6 w-auto object-contain" />
-          <h1 className="text-sm font-bold text-foreground">iHacs POS</h1>
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-orange-100">
+      {/* Top Header - Branded iHacs Black/Orange */}
+      <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-1.5 shadow-sm">
+             <img src="434757956_122139159188124564_4746025914570679797_n.jpg" alt="Logo" className="w-full h-full object-contain" />
+          </div>
+          <div>
+            <h1 className="text-base font-black text-slate-900 leading-tight tracking-tight">iHacs</h1>
+            <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#f36c21]">Solutions</p>
+          </div>
         </div>
-        <button
-          onClick={() => navigate("/")}
-          className="flex items-center gap-1.5 bg-destructive text-destructive-foreground px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm"
-        >
-          <FilePlus className="w-4 h-4" />
-          New Invoice
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex flex-col items-end mr-1">
+             <span className="text-[9px] font-black text-emerald-500 flex items-center gap-1 uppercase tracking-wider"><span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span> Terminal v2</span>
+          </div>
+        </div>
       </header>
 
-      {/* Mobile Nav - fixed 5-column grid, large touch targets, green active */}
-      <nav className="lg:hidden grid grid-cols-5 border-b border-border bg-card overflow-hidden sticky top-[41px] z-40 w-full shrink-0">
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex flex-col items-center justify-center gap-0.5 py-2.5 text-[11px] font-bold transition-all min-w-0 ${
-                isActive
-                  ? "bg-emerald-500 text-white shadow-inner"
-                  : "text-muted-foreground active:bg-secondary"
-              }`}
-            >
-              <item.icon className={`w-5 h-5 shrink-0 ${isActive ? "text-white" : ""}`} />
-              <span className="truncate">{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="flex-1 flex overflow-hidden">
-        {/* Desktop Sidebar */}
-        <nav className="hidden lg:flex flex-col w-56 border-r border-border bg-card p-3 gap-1">
+      <div className="flex-1 flex flex-col-reverse lg:flex-row overflow-hidden relative">
+        {/* Navigation - Bottom on Mobile, Side on Desktop */}
+        <nav className="fixed bottom-0 lg:static w-full lg:w-64 bg-white border-t lg:border-t-0 lg:border-r border-slate-200 px-2 py-1 lg:p-4 z-50 flex lg:flex-col justify-around lg:justify-start gap-1 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] lg:shadow-none bg-opacity-95 backdrop-blur-md">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
+            const Icon = item.icon;
             return (
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex flex-col lg:flex-row items-center gap-1 lg:gap-3 py-2 lg:px-4 lg:py-3.5 rounded-2xl transition-all duration-300 group relative flex-1 lg:flex-none ${
                   isActive
-                    ? "bg-emerald-500 text-white"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    ? "text-[#f36c21] bg-orange-50/50 lg:bg-orange-50/80 shadow-sm"
+                    : "text-slate-400 hover:text-slate-600"
                 }`}
               >
-                <item.icon className="w-5 h-5" />
-                {item.label}
+                <div className={`transition-transform duration-300 ${isActive ? "scale-110 lg:scale-100" : "group-active:scale-90"}`}>
+                  <Icon className={`w-6 h-6 lg:w-5 lg:h-5 ${isActive ? "stroke-[2.5]" : "stroke-[2.2]"}`} />
+                </div>
+                <span className={`text-[10px] lg:text-[13px] font-black tracking-tight ${isActive ? "opacity-100" : "opacity-70 lg:opacity-100"}`}>
+                  {item.label}
+                </span>
+                
+                {/* Active Indicators */}
+                {isActive && (
+                  <>
+                    <div className="absolute -top-1 lg:top-auto lg:right-0 w-10 lg:w-1.5 h-1 lg:h-1/2 bg-[#f36c21] rounded-full" />
+                    <div className="lg:hidden absolute -top-1 blur-md w-12 h-1 bg-[#f36c21] opacity-30" />
+                  </>
+                )}
               </Link>
             );
           })}
         </nav>
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        {/* Content Area */}
+        <main className="flex-1 overflow-y-auto pb-24 lg:pb-0 bg-[#f8fafc] scroll-smooth">
+          {children}
+        </main>
       </div>
     </div>
   );
