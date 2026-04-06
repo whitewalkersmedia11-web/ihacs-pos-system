@@ -59,10 +59,10 @@ const Dashboard = () => {
     
     const monthSales = sales.filter((s) => s.date.startsWith(thisMonthStr));
     const monthRevenue = monthSales.reduce((sum, s) => sum + Number(s.total), 0);
+    const monthCost = monthSales.reduce((sum, s) => sum + Number(s.total_cost || 0), 0);
     const monthSalesCount = monthSales.length;
 
-    // Estimate Profit (Simplified: Revenue - approx cost of 70%)
-    const grossProfit = monthRevenue * 0.3; 
+    const grossProfit = monthRevenue - monthCost; 
     
     const monthExpenses = expenses.filter((e) => e.date.startsWith(thisMonthStr));
     const totalExpenses = monthExpenses.reduce((sum, e) => sum + Number(e.amount), 0);

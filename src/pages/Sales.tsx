@@ -68,11 +68,13 @@ const Sales = () => {
       imei: p.imei, warranty: p.warranty, emoji: "📱",
       sub: `${p.condition} · ${p.storage} · ${p.color}`,
       category: p.category,
+      cost: p.cost || 0
     }));
     const accItems = dbAccessories.map((a) => ({
       id: a.id, type: "accessory" as const, name: a.name, price: a.price,
       emoji: a.emoji, sub: `SKU: ${a.sku} · Stock: ${a.stock}`,
       category: a.category,
+      cost: a.cost || 0
     }));
     return [...phoneItems, ...accItems];
   }, [dbPhones, dbAccessories]);
@@ -93,11 +95,11 @@ const Sales = () => {
     setCart((prev) => {
       if (product.type === "phone") {
         if (prev.find((i) => i.id === product.id)) return prev;
-        return [...prev, { id: product.id, type: "phone", name: product.name, price: product.price, originalPrice: product.price, quantity: 1, imei: product.imei, warranty: product.warranty, emoji: product.emoji }];
+        return [...prev, { id: product.id, type: "phone", name: product.name, price: product.price, originalPrice: product.price, quantity: 1, imei: product.imei, warranty: product.warranty, emoji: product.emoji, cost: product.cost }];
       }
       const existing = prev.find((i) => i.id === product.id);
       if (existing) return prev.map((i) => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { id: product.id, type: "accessory", name: product.name, price: product.price, originalPrice: product.price, quantity: 1, emoji: product.emoji }];
+      return [...prev, { id: product.id, type: "accessory", name: product.name, price: product.price, originalPrice: product.price, quantity: 1, emoji: product.emoji, cost: product.cost }];
     });
     toast.success(`Added ${product.name}`);
   }, []);
@@ -130,6 +132,7 @@ const Sales = () => {
 
     try {
       // 1. Record the Sale
+      const totalCost = cart.reduce((sum, i) => sum + (i.cost * i.quantity), 0);
       const { data: sale, error: saleError } = await supabase.from("sales").insert([{
         customer_name: customerName,
         customer_phone: customerPhone,
@@ -139,6 +142,7 @@ const Sales = () => {
         trade_in_value: tradeIn,
         trade_in_device: tradeInDevice,
         total,
+        total_cost: totalCost,
         payment_method: paymentMethod
       }]).select().single();
 

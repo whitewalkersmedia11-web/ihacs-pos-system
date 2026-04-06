@@ -36,6 +36,7 @@ export interface CartItemPOS {
   imei?: string;
   warranty?: string;
   emoji: string;
+  cost: number;
 }
 
 export interface SaleTransaction {
