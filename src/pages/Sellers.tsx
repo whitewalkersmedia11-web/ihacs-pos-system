@@ -288,6 +288,16 @@ const Sellers = () => {
           <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-6 text-white shadow-xl">
             <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Total Purchase</h3>
             <p className="text-4xl font-black tracking-tight mb-5">{formatLKR(totalCost)}</p>
+
+            {/* Green: Buy New Items — opens dialog */}
+            <button
+              onClick={() => setIsAddingItem(true)}
+              className="w-full mb-3 h-11 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold uppercase tracking-wide text-sm active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              <ShoppingBag className="w-4 h-4" /> Buy New Items
+            </button>
+
+            {/* Orange: Complete & Print */}
             <Button
               onClick={completePurchase}
               disabled={items.length === 0 || !sellerName}
