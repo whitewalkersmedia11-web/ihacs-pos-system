@@ -256,7 +256,7 @@ const Sellers = () => {
               disabled={items.length === 0 || !sellerName}
               className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold uppercase tracking-wide text-sm active:scale-95 transition-all disabled:opacity-50"
             >
-              <CheckCircle2 className="w-5 h-5 mr-2" /> Complete &amp; Print
+              <CheckCircle2 className="w-5 h-5 mr-2" /> Buy New Items
             </Button>
           </div>
         </div>
