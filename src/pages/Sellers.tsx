@@ -213,23 +213,24 @@ const Sellers = () => {
           <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm">
             <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center justify-between gap-2">
               <span className="flex items-center gap-2"><User className="w-4 h-4" /> Seller Info</span>
-              {existingSellers.length > 0 && (
-                <button 
-                  onClick={() => {
-                    setIsNewSeller(!isNewSeller);
-                    if (!isNewSeller) {
-                      setSellerName("");
-                      setSellerPhone("");
-                    } else if (existingSellers.length > 0) {
-                      setSellerName(existingSellers[0].name);
-                      setSellerPhone(existingSellers[0].phone || "");
-                    }
-                  }}
-                  className="text-[10px] text-[#f36c21] hover:underline"
-                >
-                  {isNewSeller ? "Select Existing" : "+ Add New Seller"}
-                </button>
-              )}
+              <button 
+                onClick={() => {
+                  setIsNewSeller(!isNewSeller);
+                  if (!isNewSeller) {
+                    setSellerName("");
+                    setSellerPhone("");
+                  } else if (existingSellers.length > 0) {
+                    setSellerName(existingSellers[0].name);
+                    setSellerPhone(existingSellers[0].phone || "");
+                  } else {
+                    setSellerName("");
+                    setSellerPhone("");
+                  }
+                }}
+                className="text-[10px] text-[#f36c21] hover:underline"
+              >
+                {isNewSeller ? "Select Existing" : "+ Add New Seller"}
+              </button>
             </h3>
             <div className="space-y-4">
               {!isNewSeller ? (
@@ -246,9 +247,13 @@ const Sellers = () => {
                     }}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:border-[#f36c21] focus:ring-2 focus:ring-orange-500/20"
                   >
-                    {existingSellers.map(s => (
-                      <option key={s.id} value={s.name}>{s.name} {s.phone ? `(${s.phone})` : ""}</option>
-                    ))}
+                    {existingSellers.length === 0 ? (
+                      <option value="" disabled>No sellers available yet</option>
+                    ) : (
+                      existingSellers.map(s => (
+                        <option key={s.id} value={s.name}>{s.name} {s.phone ? `(${s.phone})` : ""}</option>
+                      ))
+                    )}
                   </select>
                 </div>
               ) : (
