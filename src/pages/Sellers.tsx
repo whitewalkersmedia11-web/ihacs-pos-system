@@ -390,8 +390,7 @@ const PurchaseFlowDialog = ({ open, sellers, onClose, onComplete, onAddSellerReq
                   <F label="Brand" value={phone.brand} onChange={v => upP("brand", v)} />
                   <F label="Model" value={phone.model} onChange={v => upP("model", v)} />
                   <F label="IMEI" value={phone.imei} onChange={v => upP("imei", v)} cls="col-span-2" />
-                  <F label="Price (LKR)" value={String(phone.price)} onChange={v => upP("price", Number(v))} type="number" />
-                  <F label="Cost (LKR)" value={String(phone.cost)} onChange={v => upP("cost", Number(v))} type="number" />
+                  <F label="Buying Price (LKR)" value={String(phone.cost)} onChange={v => upP("cost", Number(v))} type="number" cls="col-span-2" />
                   <F label="Color" value={phone.color} onChange={v => upP("color", v)} />
                   <F label="Storage" value={phone.storage} onChange={v => upP("storage", v)} />
                   <SF label="Warranty" value={phone.warranty} options={["3 months", "6 months", "1 year", "2 years"]} onChange={v => upP("warranty", v)} />
@@ -408,8 +407,7 @@ const PurchaseFlowDialog = ({ open, sellers, onClose, onComplete, onAddSellerReq
                   <F label="SKU (Optional)" value={acc.sku} onChange={v => upA("sku", v)} />
                   <SF label="Category" value={acc.category} options={["Cases", "Chargers", "Cables", "Audio", "Power Banks", "Other"]} onChange={v => upA("category", v)} />
                   <F label="Emoji" value={acc.emoji} onChange={v => upA("emoji", v)} />
-                  <F label="Price (LKR)" value={String(acc.price)} onChange={v => upA("price", Number(v))} type="number" />
-                  <F label="Cost (LKR)" value={String(acc.cost)} onChange={v => upA("cost", Number(v))} type="number" />
+                  <F label="Buying Price (LKR)" value={String(acc.cost)} onChange={v => upA("cost", Number(v))} type="number" cls="col-span-2" />
                   <F label="Quantity" value={String(acc.stock)} onChange={v => upA("stock", Number(v))} type="number" />
                   <F label="Low Stock Alert" value={String(acc.lowStockThreshold)} onChange={v => upA("lowStockThreshold", Number(v))} type="number" />
                   <Button onClick={addAcc} className="col-span-2 bg-[#f36c21] hover:bg-[#e05b10] text-white h-11">
