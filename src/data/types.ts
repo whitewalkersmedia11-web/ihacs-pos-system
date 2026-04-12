@@ -12,6 +12,15 @@ export interface Phone {
   status: "In Stock" | "Sold" | "Reserved";
   addedDate: string;
   category: "iPhone" | "Android" | "Other";
+  seller_id?: string;
+  seller_name?: string;
+}
+
+export interface Seller {
+  id: string;
+  name: string;
+  phone?: string;
+  joinedDate: string;
 }
 
 export interface Accessory {
@@ -24,6 +33,8 @@ export interface Accessory {
   stock: number;
   lowStockThreshold: number;
   emoji: string;
+  seller_id?: string;
+  seller_name?: string;
 }
 
 export interface CartItemPOS {

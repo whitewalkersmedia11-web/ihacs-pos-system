@@ -57,6 +57,16 @@ const Sellers = () => {
       const { error } = await supabase.from("phones").insert(phonesToInsert);
       if (error) throw error;
 
+      // Add Seller to DB if not exists
+      try {
+        const { data: existingSellers } = await supabase.from("sellers").select("id").eq("name", sellerName.trim());
+        if (!existingSellers || existingSellers.length === 0) {
+          await supabase.from("sellers").insert([{ name: sellerName.trim(), phone: sellerPhone, joined_date: new Date().toISOString() }]);
+        }
+      } catch (err) {
+        console.warn("Could not save seller (check if sellers table is created)", err);
+      }
+
       // Update offline cache if possible, simple approach:
       const { data: phones } = await supabase.from("phones").select("*");
       if (phones) {

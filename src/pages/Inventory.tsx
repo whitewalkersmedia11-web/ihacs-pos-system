@@ -3,7 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Plus, Search, Edit2, Trash2, Smartphone, Package, Apple, Monitor, Tablet, ShieldCheck, Cable, Headphones, BatteryCharging, Zap, MoreHorizontal, Loader2 } from "lucide-react";
-import { Phone, Accessory } from "@/data/types";
+import { Phone, Accessory, Seller } from "@/data/types";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { offlineSync } from "@/lib/offlineSync";
@@ -36,6 +36,7 @@ const accCategoryIcons: Record<string, React.ElementType> = {
 const Inventory = () => {
   const [phoneList, setPhoneList] = useState<Phone[]>([]);
   const [accList, setAccList] = useState<Accessory[]>([]);
+  const [sellerList, setSellerList] = useState<Seller[]>([]);
   const [loading, setLoading] = useState(true);
   const [phoneSearch, setPhoneSearch] = useState("");
   const [accSearch, setAccSearch] = useState("");
@@ -55,9 +56,12 @@ const Inventory = () => {
     try {
       const { data: phones, error: phoneError } = await supabase.from("phones").select("*");
       const { data: acc, error: accError } = await supabase.from("accessories").select("*");
+      const { data: sellersData } = await supabase.from("sellers").select("*");
 
       if (phoneError) throw phoneError;
       if (accError) throw accError;
+
+      setSellerList(sellersData || []);
 
       setPhoneList(phones.map(p => ({
         ...p,
@@ -100,6 +104,7 @@ const Inventory = () => {
       condition: phone.condition,
       status: phone.status,
       category: phone.category,
+      seller_name: phone.seller_name,
     };
 
     try {
@@ -141,6 +146,7 @@ const Inventory = () => {
       stock: acc.stock,
       low_stock_threshold: acc.lowStockThreshold,
       emoji: acc.emoji,
+      seller_name: acc.seller_name,
     };
 
     try {
@@ -396,6 +402,7 @@ const Inventory = () => {
       <PhoneDialog
         phone={editPhone}
         isNew={isNewPhone}
+        sellers={sellerList}
         onSave={savePhone}
         onClose={() => { setEditPhone(null); setIsNewPhone(false); }}
       />
@@ -404,6 +411,7 @@ const Inventory = () => {
       <AccDialog
         acc={editAcc}
         isNew={isNewAcc}
+        sellers={sellerList}
         onSave={saveAcc}
         onClose={() => { setEditAcc(null); setIsNewAcc(false); }}
       />
@@ -411,8 +419,8 @@ const Inventory = () => {
   );
 };
 
-const PhoneDialog = ({ phone, isNew, onSave, onClose }: {
-  phone: Phone | null; isNew: boolean; onSave: (p: Phone) => void; onClose: () => void;
+const PhoneDialog = ({ phone, isNew, sellers, onSave, onClose }: {
+  phone: Phone | null; isNew: boolean; sellers: Seller[]; onSave: (p: Phone) => void; onClose: () => void;
 }) => {
   const [form, setForm] = useState<Phone>(phone || {} as Phone);
 
@@ -438,6 +446,7 @@ const PhoneDialog = ({ phone, isNew, onSave, onClose }: {
           <Field label="Cost (LKR)" value={String(form.cost)} onChange={(v) => update("cost", Number(v))} type="number" />
           <Field label="Color" value={form.color} onChange={(v) => update("color", v)} />
           <Field label="Storage" value={form.storage} onChange={(v) => update("storage", v)} />
+          <SelectField label="Seller" value={form.seller_name || ""} options={["", ...sellers.map(s => s.name)]} onChange={(v) => update("seller_name", v)} />
           <SelectField label="Warranty" value={form.warranty} options={warrantyOptions} onChange={(v) => update("warranty", v)} />
           <SelectField label="Condition" value={form.condition} options={conditionOptions} onChange={(v) => update("condition", v)} />
           <SelectField label="Status" value={form.status} options={statusOptions} onChange={(v) => update("status", v)} className="col-span-2" />
@@ -451,8 +460,8 @@ const PhoneDialog = ({ phone, isNew, onSave, onClose }: {
   );
 };
 
-const AccDialog = ({ acc, isNew, onSave, onClose }: {
-  acc: Accessory | null; isNew: boolean; onSave: (a: Accessory) => void; onClose: () => void;
+const AccDialog = ({ acc, isNew, sellers, onSave, onClose }: {
+  acc: Accessory | null; isNew: boolean; sellers: Seller[]; onSave: (a: Accessory) => void; onClose: () => void;
 }) => {
   const [form, setForm] = useState<Accessory>(acc || {} as Accessory);
 
@@ -478,6 +487,7 @@ const AccDialog = ({ acc, isNew, onSave, onClose }: {
           <Field label="Cost (LKR)" value={String(form.cost)} onChange={(v) => update("cost", Number(v))} type="number" />
           <Field label="Stock" value={String(form.stock)} onChange={(v) => update("stock", Number(v))} type="number" />
           <Field label="Low Stock Threshold" value={String(form.lowStockThreshold)} onChange={(v) => update("lowStockThreshold", Number(v))} type="number" />
+          <SelectField label="Seller" value={form.seller_name || ""} options={["", ...sellers.map(s => s.name)]} onChange={(v) => update("seller_name", v)} className="col-span-2" />
         </div>
         <div className="flex gap-2 justify-end">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
