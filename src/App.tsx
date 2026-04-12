@@ -9,6 +9,7 @@ import Inventory from "./pages/Inventory";
 import SalesHistory from "./pages/SalesHistory";
 import Dashboard from "./pages/Dashboard";
 import Expenses from "./pages/Expenses";
+import Sellers from "./pages/Sellers";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ const App = () => (
           <Route path="/history" element={<AppLayout><SalesHistory /></AppLayout>} />
           <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
           <Route path="/expenses" element={<AppLayout><Expenses /></AppLayout>} />
+          <Route path="/sellers" element={<AppLayout><Sellers /></AppLayout>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </HashRouter>
