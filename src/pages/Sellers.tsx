@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Plus, Trash2, Printer, CheckCircle2, User, Phone as PhoneIcon, Calendar, Smartphone } from "lucide-react";
-import { Phone } from "@/data/types";
+import { Phone, Seller } from "@/data/types";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { offlineSync } from "@/lib/offlineSync";
+import { useEffect } from "react";
 
 const formatLKR = (v: number) => `Rs. ${v.toLocaleString("en-LK")}`;
 
@@ -17,6 +18,27 @@ const Sellers = () => {
   const [isComplete, setIsComplete] = useState(false);
   const [purchaseInvoiceNo, setPurchaseInvoiceNo] = useState("");
   const [date] = useState(new Date().toLocaleDateString("en-GB"));
+  
+  const [existingSellers, setExistingSellers] = useState<Seller[]>([]);
+  const [isNewSeller, setIsNewSeller] = useState(true);
+
+  useEffect(() => {
+    fetchSellers();
+  }, []);
+
+  const fetchSellers = async () => {
+    try {
+      const { data } = await supabase.from("sellers").select("*");
+      if (data && data.length > 0) {
+        setExistingSellers(data);
+        setIsNewSeller(false);
+        setSellerName(data[0].name);
+        setSellerPhone(data[0].phone || "");
+      }
+    } catch (error) {
+      console.warn("Could not fetch sellers", error);
+    }
+  };
 
   const handleAddPhone = (newPhone: Phone) => {
     // Generate a temporary ID for the cart
@@ -59,9 +81,11 @@ const Sellers = () => {
 
       // Add Seller to DB if not exists
       try {
-        const { data: existingSellers } = await supabase.from("sellers").select("id").eq("name", sellerName.trim());
-        if (!existingSellers || existingSellers.length === 0) {
-          await supabase.from("sellers").insert([{ name: sellerName.trim(), phone: sellerPhone, joined_date: new Date().toISOString() }]);
+        if (isNewSeller) {
+          const { data: existingSellersList } = await supabase.from("sellers").select("id").eq("name", sellerName.trim());
+          if (!existingSellersList || existingSellersList.length === 0) {
+            await supabase.from("sellers").insert([{ name: sellerName.trim(), phone: sellerPhone, joined_date: new Date().toISOString() }]);
+          }
         }
       } catch (err) {
         console.warn("Could not save seller (check if sellers table is created)", err);
@@ -85,8 +109,15 @@ const Sellers = () => {
   };
 
   const resetPage = () => {
-    setSellerName("");
-    setSellerPhone("");
+    if (existingSellers.length > 0) {
+      setIsNewSeller(false);
+      setSellerName(existingSellers[0].name);
+      setSellerPhone(existingSellers[0].phone || "");
+    } else {
+      setSellerName("");
+      setSellerPhone("");
+      setIsNewSeller(true);
+    }
     setItems([]);
     setIsComplete(false);
     setPurchaseInvoiceNo("");
@@ -180,34 +211,74 @@ const Sellers = () => {
         {/* Left Column: Details */}
         <div className="md:col-span-1 space-y-6">
           <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm">
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-              <User className="w-4 h-4" /> Seller Info
+            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2"><User className="w-4 h-4" /> Seller Info</span>
+              {existingSellers.length > 0 && (
+                <button 
+                  onClick={() => {
+                    setIsNewSeller(!isNewSeller);
+                    if (!isNewSeller) {
+                      setSellerName("");
+                      setSellerPhone("");
+                    } else if (existingSellers.length > 0) {
+                      setSellerName(existingSellers[0].name);
+                      setSellerPhone(existingSellers[0].phone || "");
+                    }
+                  }}
+                  className="text-[10px] text-[#f36c21] hover:underline"
+                >
+                  {isNewSeller ? "Select Existing" : "+ Add New Seller"}
+                </button>
+              )}
             </h3>
             <div className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-500 mb-1 block">Seller / Business Name</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
+              {!isNewSeller ? (
+                <div>
+                  <label className="text-xs font-bold text-slate-500 mb-1 block">Select Seller</label>
+                  <select 
                     value={sellerName}
-                    onChange={e => setSellerName(e.target.value)}
-                    placeholder="Enter seller name"
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:border-[#f36c21] focus:ring-2 focus:ring-orange-500/20 transition-all"
-                  />
+                    onChange={(e) => {
+                      const s = existingSellers.find(x => x.name === e.target.value);
+                      if (s) {
+                        setSellerName(s.name);
+                        setSellerPhone(s.phone || "");
+                      }
+                    }}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:border-[#f36c21] focus:ring-2 focus:ring-orange-500/20"
+                  >
+                    {existingSellers.map(s => (
+                      <option key={s.id} value={s.name}>{s.name} {s.phone ? `(${s.phone})` : ""}</option>
+                    ))}
+                  </select>
                 </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 mb-1 block">Contact Number (Optional)</label>
-                <div className="relative">
-                  <PhoneIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    value={sellerPhone}
-                    onChange={e => setSellerPhone(e.target.value)}
-                    placeholder="Enter phone number"
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:border-[#f36c21] focus:ring-2 focus:ring-orange-500/20 transition-all"
-                  />
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 mb-1 block">New Seller Name</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        value={sellerName}
+                        onChange={e => setSellerName(e.target.value)}
+                        placeholder="Enter new seller name"
+                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:border-[#f36c21] focus:ring-2 focus:ring-orange-500/20 transition-all"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 mb-1 block">Contact Number (Optional)</label>
+                    <div className="relative">
+                      <PhoneIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        value={sellerPhone}
+                        onChange={e => setSellerPhone(e.target.value)}
+                        placeholder="Enter phone number"
+                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:border-[#f36c21] focus:ring-2 focus:ring-orange-500/20 transition-all"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
               <div>
                 <label className="text-xs font-bold text-slate-500 mb-1 block">Date</label>
                 <div className="relative">
