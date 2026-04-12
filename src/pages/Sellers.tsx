@@ -1,12 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Trash2, Printer, CheckCircle2, User, Phone as PhoneIcon, Calendar, Smartphone } from "lucide-react";
+import { Plus, Trash2, Printer, CheckCircle2, User, Phone as PhoneIcon, Calendar, Smartphone, UserPlus } from "lucide-react";
 import { Phone, Seller } from "@/data/types";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { offlineSync } from "@/lib/offlineSync";
-import { useEffect } from "react";
 
 const formatLKR = (v: number) => `Rs. ${v.toLocaleString("en-LK")}`;
 
@@ -18,89 +17,82 @@ const Sellers = () => {
   const [isComplete, setIsComplete] = useState(false);
   const [purchaseInvoiceNo, setPurchaseInvoiceNo] = useState("");
   const [date] = useState(new Date().toLocaleDateString("en-GB"));
-  
-  const [existingSellers, setExistingSellers] = useState<Seller[]>([]);
-  const [isNewSeller, setIsNewSeller] = useState(true);
+  const [sellers, setSellers] = useState<Seller[]>([]);
+  const [showAddSeller, setShowAddSeller] = useState(false);
+  const [newSellerName, setNewSellerName] = useState("");
+  const [newSellerPhone, setNewSellerPhone] = useState("");
 
-  useEffect(() => {
-    fetchSellers();
-  }, []);
+  useEffect(() => { fetchSellers(); }, []);
 
   const fetchSellers = async () => {
     try {
       const { data } = await supabase.from("sellers").select("*");
-      if (data && data.length > 0) {
-        setExistingSellers(data);
-        setIsNewSeller(false);
-        setSellerName(data[0].name);
-        setSellerPhone(data[0].phone || "");
+      if (data) {
+        setSellers(data);
+        if (data.length > 0) {
+          setSellerName(data[0].name);
+          setSellerPhone(data[0].phone || "");
+        }
       }
     } catch (error) {
       console.warn("Could not fetch sellers", error);
     }
   };
 
+  const handleAddNewSeller = async () => {
+    if (!newSellerName.trim()) return toast.error("Please enter a seller name");
+    try {
+      const { data, error } = await supabase
+        .from("sellers")
+        .insert([{ name: newSellerName.trim(), phone: newSellerPhone.trim(), joined_date: new Date().toISOString() }])
+        .select();
+      if (error) throw error;
+      toast.success(`Seller "${newSellerName}" added!`);
+      setNewSellerName("");
+      setNewSellerPhone("");
+      setShowAddSeller(false);
+      await fetchSellers();
+      // auto-select the newly added seller
+      if (data && data[0]) {
+        setSellerName(data[0].name);
+        setSellerPhone(data[0].phone || "");
+      }
+    } catch (error: any) {
+      toast.error("Error adding seller: " + error.message);
+    }
+  };
+
   const handleAddPhone = (newPhone: Phone) => {
-    // Generate a temporary ID for the cart
-    const phoneWithId = { ...newPhone, id: crypto.randomUUID() };
-    setItems(prev => [...prev, phoneWithId]);
+    setItems(prev => [...prev, { ...newPhone, id: crypto.randomUUID() }]);
     setIsAddingPhone(false);
   };
 
-  const removeItem = (id: string) => {
-    setItems(prev => prev.filter(i => i.id !== id));
-  };
+  const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
 
   const totalCost = items.reduce((sum, item) => sum + Number(item.cost), 0);
 
   const completePurchase = async () => {
-    if (!sellerName) return toast.error("Please enter seller name");
+    if (!sellerName) return toast.error("Please select a seller");
     if (items.length === 0) return toast.error("Please add at least one item");
-
     try {
       const invoiceNo = `PUR-${Date.now().toString().slice(-6)}`;
       setPurchaseInvoiceNo(invoiceNo);
-
       const phonesToInsert = items.map(item => ({
-        brand: item.brand,
-        model: item.model,
-        imei: item.imei,
-        price: item.price,
-        cost: item.cost,
-        warranty: item.warranty,
-        color: item.color,
-        storage: item.storage,
-        condition: item.condition,
-        status: item.status,
-        category: item.category,
+        brand: item.brand, model: item.model, imei: item.imei,
+        price: item.price, cost: item.cost, warranty: item.warranty,
+        color: item.color, storage: item.storage, condition: item.condition,
+        status: item.status, category: item.category, seller_name: sellerName,
       }));
-
-      // In a real app we'd also store the purchase transaction. For now we insert items to inventory.
       const { error } = await supabase.from("phones").insert(phonesToInsert);
       if (error) throw error;
-
-      // Add Seller to DB if not exists
-      try {
-        if (isNewSeller) {
-          const { data: existingSellersList } = await supabase.from("sellers").select("id").eq("name", sellerName.trim());
-          if (!existingSellersList || existingSellersList.length === 0) {
-            await supabase.from("sellers").insert([{ name: sellerName.trim(), phone: sellerPhone, joined_date: new Date().toISOString() }]);
-          }
-        }
-      } catch (err) {
-        console.warn("Could not save seller (check if sellers table is created)", err);
-      }
-
-      // Update offline cache if possible, simple approach:
       const { data: phones } = await supabase.from("phones").select("*");
       if (phones) {
         const { data: acc } = await supabase.from("accessories").select("*");
-        offlineSync.cacheInventory({ 
-          phones: phones.map(p => ({ ...p, addedDate: p.added_date })) || [], 
-          accessories: acc?.map(a => ({ ...a, lowStockThreshold: a.low_stock_threshold })) || [] 
+        offlineSync.cacheInventory({
+          phones: phones.map(p => ({ ...p, addedDate: p.added_date })) || [],
+          accessories: acc?.map(a => ({ ...a, lowStockThreshold: a.low_stock_threshold })) || []
         });
       }
-
       toast.success("Purchase completed and items added to inventory!");
       setIsComplete(true);
     } catch (error: any) {
@@ -109,18 +101,16 @@ const Sellers = () => {
   };
 
   const resetPage = () => {
-    if (existingSellers.length > 0) {
-      setIsNewSeller(false);
-      setSellerName(existingSellers[0].name);
-      setSellerPhone(existingSellers[0].phone || "");
-    } else {
-      setSellerName("");
-      setSellerPhone("");
-      setIsNewSeller(true);
-    }
     setItems([]);
     setIsComplete(false);
     setPurchaseInvoiceNo("");
+    if (sellers.length > 0) {
+      setSellerName(sellers[0].name);
+      setSellerPhone(sellers[0].phone || "");
+    } else {
+      setSellerName("");
+      setSellerPhone("");
+    }
   };
 
   if (isComplete) {
@@ -132,26 +122,23 @@ const Sellers = () => {
             <Printer className="w-4 h-4" /> Print Invoice
           </Button>
         </div>
-
-        {/* Invoice Layout */}
         <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-xl print:shadow-none print:border-none print:p-0 max-w-2xl mx-auto">
           <div className="text-center pb-5 border-b border-dashed border-slate-200 mb-6">
             <div className="w-32 h-32 rounded-[2.5rem] bg-white mx-auto flex items-center justify-center p-1 border border-slate-100 mb-6 shadow-sm">
-               <img src="434757956_122139159188124564_4746025914570679797_n.jpg" alt="Logo" className="w-full h-full object-contain" />
+              <img src="434757956_122139159188124564_4746025914570679797_n.jpg" alt="Logo" className="w-full h-full object-contain" />
             </div>
             <h2 className="text-3xl font-black text-slate-900 leading-none">iHacs Solutions</h2>
             <div className="mt-2 space-y-0.5">
-               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Pussellawa, Sri Lanka</p>
-               <p className="text-[10px] font-black text-slate-500 tracking-wider">076 902 9003 / 075 098 5291</p>
-               <p className="text-[10px] font-black text-[#f36c21] lowercase">ihackssolution@gmail.com</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Pussellawa, Sri Lanka</p>
+              <p className="text-[10px] font-black text-slate-500 tracking-wider">076 902 9003 / 075 098 5291</p>
+              <p className="text-[10px] font-black text-[#f36c21] lowercase">ihackssolution@gmail.com</p>
             </div>
             <p className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] mt-4 border-t border-slate-50 pt-3">Purchase Invoice</p>
           </div>
-
           <div className="flex justify-between items-start mb-6">
             <div>
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 shadow-sm">Seller Details</h3>
-              <p className="text-lg font-black text-slate-900" style={{ fontFamily: 'Outfit, sans-serif' }}>{sellerName}</p>
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Seller Details</h3>
+              <p className="text-lg font-black text-slate-900">{sellerName}</p>
               {sellerPhone && <p className="text-sm text-slate-500 font-bold">{sellerPhone}</p>}
             </div>
             <div className="text-right">
@@ -159,7 +146,6 @@ const Sellers = () => {
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Date: <span className="text-slate-900 ml-1">{date}</span></p>
             </div>
           </div>
-
           <table className="w-full mb-8 text-sm">
             <thead>
               <tr className="border-b-2 border-slate-100">
@@ -181,7 +167,6 @@ const Sellers = () => {
               ))}
             </tbody>
           </table>
-
           <div className="flex justify-end pt-4 mb-10">
             <div className="w-full max-w-xs">
               <div className="flex justify-between items-end border-t border-dashed border-slate-200 pt-3">
@@ -190,7 +175,6 @@ const Sellers = () => {
               </div>
             </div>
           </div>
-          
           <div className="mt-8 flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
             <div className="w-40 border-t-2 border-dashed border-slate-300 pt-2 shrink-0">Seller Signature</div>
             <div className="w-40 border-t-2 border-dashed border-slate-300 pt-2 shrink-0">Authorized By</div>
@@ -203,87 +187,43 @@ const Sellers = () => {
   return (
     <div className="p-3 md:p-6 max-w-5xl mx-auto space-y-6">
       <div className="mb-2">
-        <h2 className="text-xl font-bold text-foreground">Sellers & Purchases</h2>
+        <h2 className="text-xl font-bold text-foreground">Sellers &amp; Purchases</h2>
         <p className="text-xs text-muted-foreground">Add bulk inventory from sellers and generate purchase invoices.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left Column: Details */}
-        <div className="md:col-span-1 space-y-6">
+        {/* Left Column */}
+        <div className="md:col-span-1 space-y-4">
+
+          {/* Seller Dropdown Card */}
           <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm">
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2"><User className="w-4 h-4" /> Seller Info</span>
-              <button 
-                onClick={() => {
-                  setIsNewSeller(!isNewSeller);
-                  if (!isNewSeller) {
-                    setSellerName("");
-                    setSellerPhone("");
-                  } else if (existingSellers.length > 0) {
-                    setSellerName(existingSellers[0].name);
-                    setSellerPhone(existingSellers[0].phone || "");
-                  } else {
-                    setSellerName("");
-                    setSellerPhone("");
-                  }
-                }}
-                className="text-[10px] text-[#f36c21] hover:underline"
-              >
-                {isNewSeller ? "Select Existing" : "+ Add New Seller"}
-              </button>
+            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+              <User className="w-4 h-4" /> Select Seller
             </h3>
-            <div className="space-y-4">
-              {!isNewSeller ? (
-                <div>
-                  <label className="text-xs font-bold text-slate-500 mb-1 block">Select Seller</label>
-                  <select 
-                    value={sellerName}
-                    onChange={(e) => {
-                      const s = existingSellers.find(x => x.name === e.target.value);
-                      if (s) {
-                        setSellerName(s.name);
-                        setSellerPhone(s.phone || "");
-                      }
-                    }}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:border-[#f36c21] focus:ring-2 focus:ring-orange-500/20"
-                  >
-                    {existingSellers.length === 0 ? (
-                      <option value="" disabled>No sellers available yet</option>
-                    ) : (
-                      existingSellers.map(s => (
-                        <option key={s.id} value={s.name}>{s.name} {s.phone ? `(${s.phone})` : ""}</option>
-                      ))
-                    )}
-                  </select>
-                </div>
-              ) : (
-                <>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 mb-1 block">New Seller Name</label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input
-                        value={sellerName}
-                        onChange={e => setSellerName(e.target.value)}
-                        placeholder="Enter new seller name"
-                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:border-[#f36c21] focus:ring-2 focus:ring-orange-500/20 transition-all"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 mb-1 block">Contact Number (Optional)</label>
-                    <div className="relative">
-                      <PhoneIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input
-                        value={sellerPhone}
-                        onChange={e => setSellerPhone(e.target.value)}
-                        placeholder="Enter phone number"
-                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:border-[#f36c21] focus:ring-2 focus:ring-orange-500/20 transition-all"
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
+            <div className="space-y-3">
+              {/* Seller dropdown */}
+              <div>
+                <label className="text-xs font-bold text-slate-500 mb-1 block">Seller / Business</label>
+                <select
+                  value={sellerName}
+                  onChange={(e) => {
+                    const s = sellers.find(x => x.name === e.target.value);
+                    setSellerName(e.target.value);
+                    setSellerPhone(s?.phone || "");
+                  }}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:border-[#f36c21] focus:ring-2 focus:ring-orange-500/20"
+                >
+                  {sellers.length === 0 ? (
+                    <option value="" disabled>No sellers yet — add one below</option>
+                  ) : (
+                    sellers.map(s => (
+                      <option key={s.id} value={s.name}>{s.name}{s.phone ? ` (${s.phone})` : ""}</option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              {/* Date */}
               <div>
                 <label className="text-xs font-bold text-slate-500 mb-1 block">Date</label>
                 <div className="relative">
@@ -297,16 +237,26 @@ const Sellers = () => {
               </div>
             </div>
           </div>
-          
-          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-6 text-white shadow-xl shadow-slate-200">
-            <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Total Purchase</h3>
-            <p className="text-4xl font-black tracking-tight mb-6">{formatLKR(totalCost)}</p>
-            <Button 
+
+          {/* Orange Action Box */}
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-6 text-white shadow-xl">
+            <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Total Purchase</h3>
+            <p className="text-4xl font-black tracking-tight mb-5">{formatLKR(totalCost)}</p>
+
+            {/* Add New Seller — inside orange box */}
+            <button
+              onClick={() => setShowAddSeller(true)}
+              className="w-full mb-3 h-11 bg-[#f36c21] hover:bg-[#e05b10] text-white rounded-xl font-bold uppercase tracking-wide text-sm active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              <UserPlus className="w-4 h-4" /> Add New Seller
+            </button>
+
+            <Button
               onClick={completePurchase}
               disabled={items.length === 0 || !sellerName}
-              className="w-full h-12 bg-[#f36c21] hover:bg-[#e05b10] text-white rounded-xl font-bold uppercase tracking-wide text-sm active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100"
+              className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold uppercase tracking-wide text-sm active:scale-95 transition-all disabled:opacity-50"
             >
-              <CheckCircle2 className="w-5 h-5 mr-2" /> Complete & Print
+              <CheckCircle2 className="w-5 h-5 mr-2" /> Complete &amp; Print
             </Button>
           </div>
         </div>
@@ -323,7 +273,7 @@ const Sellers = () => {
               </Button>
             </div>
 
-            <div className="flex-1 space-y-3 overflow-y-auto pr-2 pb-16">
+            <div className="flex-1 space-y-3 overflow-y-auto pr-2 pb-4">
               {items.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 mt-20">
                   <Smartphone className="w-12 h-12 mb-3 opacity-20" />
@@ -353,10 +303,9 @@ const Sellers = () => {
                         <p className="text-[10px] font-bold text-slate-400 uppercase">Cost</p>
                         <p className="font-black text-slate-900 text-sm">{formatLKR(item.cost)}</p>
                       </div>
-                      <button 
+                      <button
                         onClick={() => removeItem(item.id)}
                         className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors opacity-50 group-hover:opacity-100"
-                        title="Remove"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -369,58 +318,91 @@ const Sellers = () => {
         </div>
       </div>
 
-      <PhoneDialog 
-        open={isAddingPhone} 
-        onClose={() => setIsAddingPhone(false)} 
-        onSave={handleAddPhone} 
-      />
+      {/* Add Phone Dialog */}
+      <PhoneDialog open={isAddingPhone} onClose={() => setIsAddingPhone(false)} onSave={handleAddPhone} />
+
+      {/* Add New Seller Dialog */}
+      <Dialog open={showAddSeller} onOpenChange={setShowAddSeller}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5 text-[#f36c21]" /> Add New Seller</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <div>
+              <label className="text-xs font-bold text-slate-500 mb-1 block">Seller / Business Name *</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  value={newSellerName}
+                  onChange={e => setNewSellerName(e.target.value)}
+                  placeholder="Enter seller name"
+                  className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:border-[#f36c21] focus:ring-2 focus:ring-orange-500/20"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 mb-1 block">Contact Number (Optional)</label>
+              <div className="relative">
+                <PhoneIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  value={newSellerPhone}
+                  onChange={e => setNewSellerPhone(e.target.value)}
+                  placeholder="Enter phone number"
+                  className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:border-[#f36c21] focus:ring-2 focus:ring-orange-500/20"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => setShowAddSeller(false)}>Cancel</Button>
+            <Button onClick={handleAddNewSeller} className="bg-[#f36c21] hover:bg-[#e05b10] text-white">
+              <UserPlus className="w-4 h-4 mr-1" /> Save Seller
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
 
-// Reusable inline dialog for adding a phone
-const PhoneDialog = ({ open, onClose, onSave }: { open: boolean, onClose: () => void, onSave: (p: Phone) => void }) => {
+// Dialog for adding a phone to the purchase
+const PhoneDialog = ({ open, onClose, onSave }: { open: boolean; onClose: () => void; onSave: (p: Phone) => void }) => {
   const [form, setForm] = useState<Phone>({
     id: "", brand: "", model: "", imei: "", price: 0, cost: 0,
     warranty: "6 months", color: "", storage: "128GB", condition: "New",
-    status: "In Stock", addedDate: new Date().toISOString(), category: "Other"
+    status: "In Stock", addedDate: new Date().toISOString(), category: "iPhone"
   });
 
   if (!open) return null;
 
-  const update = (key: keyof Phone, val: string | number) => setForm((prev) => ({ ...prev, [key]: val }));
+  const update = (key: keyof Phone, val: string | number) => setForm(prev => ({ ...prev, [key]: val }));
 
   const handleSave = () => {
     if (!form.brand || !form.model || !form.imei || !form.cost) {
-      return toast.error("Please fill in basic phone details (Brand, Model, IMEI, Cost)");
+      return toast.error("Please fill in Brand, Model, IMEI and Cost");
     }
     onSave(form);
-    // Reset form after saving
-    setForm({
-      id: "", brand: "", model: "", imei: "", price: 0, cost: 0,
-      warranty: "6 months", color: "", storage: "128GB", condition: "New",
-      status: "In Stock", addedDate: new Date().toISOString(), category: "Other"
-    });
+    setForm({ id: "", brand: "", model: "", imei: "", price: 0, cost: 0, warranty: "6 months", color: "", storage: "128GB", condition: "New", status: "In Stock", addedDate: new Date().toISOString(), category: "iPhone" });
   };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Phone to Purchase</DialogTitle>
+          <DialogTitle>Add Phone to Purchase</DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3 py-4">
-          <SelectField label="Category" value={form.category} options={["iPhone", "Android", "Other"]} onChange={(v) => update("category", v)} className="col-span-2" />
-          <Field label="Brand" value={form.brand} onChange={(v) => update("brand", v)} />
-          <Field label="Model" value={form.model} onChange={(v) => update("model", v)} />
-          <Field label="IMEI" value={form.imei} onChange={(v) => update("imei", v)} className="col-span-2" />
-          <Field label="Price (LKR)" value={String(form.price)} onChange={(v) => update("price", Number(v))} type="number" />
-          <Field label="Cost (LKR)" value={String(form.cost)} onChange={(v) => update("cost", Number(v))} type="number" />
-          <Field label="Color" value={form.color} onChange={(v) => update("color", v)} />
-          <Field label="Storage" value={form.storage} onChange={(v) => update("storage", v)} />
-          <SelectField label="Warranty" value={form.warranty} options={["3 months", "6 months", "1 year", "2 years"]} onChange={(v) => update("warranty", v)} />
-          <SelectField label="Condition" value={form.condition} options={["New", "Used", "Refurbished"]} onChange={(v) => update("condition", v)} />
-          <SelectField label="Status" value={form.status} options={["In Stock", "Sold", "Reserved"]} onChange={(v) => update("status", v)} className="col-span-2" />
+          <SF label="Category" value={form.category} options={["iPhone", "Android", "Other"]} onChange={v => update("category", v)} cls="col-span-2" />
+          <F label="Brand" value={form.brand} onChange={v => update("brand", v)} />
+          <F label="Model" value={form.model} onChange={v => update("model", v)} />
+          <F label="IMEI" value={form.imei} onChange={v => update("imei", v)} cls="col-span-2" />
+          <F label="Price (LKR)" value={String(form.price)} onChange={v => update("price", Number(v))} type="number" />
+          <F label="Cost (LKR)" value={String(form.cost)} onChange={v => update("cost", Number(v))} type="number" />
+          <F label="Color" value={form.color} onChange={v => update("color", v)} />
+          <F label="Storage" value={form.storage} onChange={v => update("storage", v)} />
+          <SF label="Warranty" value={form.warranty} options={["3 months", "6 months", "1 year", "2 years"]} onChange={v => update("warranty", v)} />
+          <SF label="Condition" value={form.condition} options={["New", "Used", "Refurbished"]} onChange={v => update("condition", v)} />
+          <SF label="Status" value={form.status} options={["In Stock", "Sold", "Reserved"]} onChange={v => update("status", v)} cls="col-span-2" />
         </div>
         <div className="flex gap-2 justify-end">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
@@ -431,18 +413,18 @@ const PhoneDialog = ({ open, onClose, onSave }: { open: boolean, onClose: () => 
   );
 };
 
-const Field = ({ label, value, onChange, type = "text", className = "" }: { label: string; value: string; onChange: (v: string) => void; type?: string; className?: string; }) => (
-  <div className={className}>
+const F = ({ label, value, onChange, type = "text", cls = "" }: { label: string; value: string; onChange: (v: string) => void; type?: string; cls?: string }) => (
+  <div className={cls}>
     <label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label>
-    <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
+    <input type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
   </div>
 );
 
-const SelectField = ({ label, value, options, onChange, className = "" }: { label: string; value: string; options: string[]; onChange: (v: string) => void; className?: string; }) => (
-  <div className={className}>
+const SF = ({ label, value, options, onChange, cls = "" }: { label: string; value: string; options: string[]; onChange: (v: string) => void; cls?: string }) => (
+  <div className={cls}>
     <label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label>
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30">
-      {options.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
+    <select value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30">
+      {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
     </select>
   </div>
 );
