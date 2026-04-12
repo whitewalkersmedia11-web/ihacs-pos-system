@@ -406,7 +406,6 @@ const PurchaseFlowDialog = ({ open, sellers, onClose, onComplete, onAddSellerReq
                   <F label="Name" value={acc.name} onChange={v => upA("name", v)} cls="col-span-2" />
                   <F label="SKU (Optional)" value={acc.sku} onChange={v => upA("sku", v)} />
                   <SF label="Category" value={acc.category} options={["Cases", "Chargers", "Cables", "Audio", "Power Banks", "Other"]} onChange={v => upA("category", v)} />
-                  <F label="Emoji" value={acc.emoji} onChange={v => upA("emoji", v)} />
                   <F label="Buying Price (LKR)" value={String(acc.cost)} onChange={v => upA("cost", Number(v))} type="number" cls="col-span-2" />
                   <F label="Quantity" value={String(acc.stock)} onChange={v => upA("stock", Number(v))} type="number" />
                   <F label="Low Stock Alert" value={String(acc.lowStockThreshold)} onChange={v => upA("lowStockThreshold", Number(v))} type="number" />

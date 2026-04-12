@@ -482,7 +482,6 @@ const AccDialog = ({ acc, isNew, sellers, onSave, onClose }: {
           <Field label="Name" value={form.name} onChange={(v) => update("name", v)} className="col-span-2" />
           <Field label="SKU" value={form.sku} onChange={(v) => update("sku", v)} />
           <SelectField label="Category" value={form.category} options={accCategoryOptions} onChange={(v) => update("category", v)} />
-          <Field label="Emoji" value={form.emoji} onChange={(v) => update("emoji", v)} />
           <Field label="Price (LKR)" value={String(form.price)} onChange={(v) => update("price", Number(v))} type="number" />
           <Field label="Cost (LKR)" value={String(form.cost)} onChange={(v) => update("cost", Number(v))} type="number" />
           <Field label="Stock" value={String(form.stock)} onChange={(v) => update("stock", Number(v))} type="number" />
