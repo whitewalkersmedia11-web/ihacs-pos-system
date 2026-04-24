@@ -10,6 +10,10 @@ import { Phone, Accessory, Seller } from "@/data/types";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { offlineSync } from "@/lib/offlineSync";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+import { Check, ChevronsUpDown } from "lucide-react";
 
 const formatLKR = (v: number) => `Rs. ${v.toLocaleString("en-LK")}`;
 
@@ -150,69 +154,70 @@ const Sellers = () => {
             <p className="text-xs mt-1">Click "Buy New Items" to record your first purchase</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {purchaseHistory.map((p) => (
-              <div key={p.id} className="border border-slate-100 rounded-2xl overflow-hidden">
-                <button
-                  onClick={() => setExpandedId(expandedId === p.id ? null : p.id)}
-                  className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-orange-50/50 transition-colors text-left"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center shrink-0">
-                      <ShoppingBag className="w-5 h-5 text-[#f36c21]" />
+              <div key={p.id} className="group relative bg-[#f8fafc]/50 hover:bg-white border border-slate-100 hover:border-orange-200 rounded-[2rem] transition-all duration-300 p-5 shadow-sm hover:shadow-xl overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50/50 rounded-full -mr-16 -mt-16 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                
+                <div className="relative flex justify-between items-start mb-4">
+                  <div className="flex gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-sm group-hover:scale-110 transition-transform duration-500">
+                      <ShoppingBag className="w-6 h-6 text-[#f36c21]" />
                     </div>
                     <div>
-                      <p className="font-black text-slate-800 text-sm">{p.seller_name}</p>
-                      <p className="text-[10px] text-slate-400 font-bold">
-                        {p.invoice_no} • {new Date(p.date).toLocaleDateString("en-GB")} • {p.items.length} item{p.items.length !== 1 ? "s" : ""}
-                      </p>
+                      <h4 className="text-base font-black text-slate-800 leading-tight">{p.seller_name}</h4>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{p.invoice_no}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <p className="font-black text-slate-900">{formatLKR(p.total)}</p>
-                    {expandedId === p.id ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                  <div className="text-right">
+                    <p className="text-lg font-black text-slate-900 leading-none">{formatLKR(p.total)}</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase mt-1">{new Date(p.date).toLocaleDateString("en-GB")}</p>
                   </div>
-                </button>
-                {expandedId === p.id && (
-                  <div className="px-4 pb-4 pt-2 bg-white">
-                    <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
-                      <span>🗓 {new Date(p.date).toLocaleString("en-GB")}</span>
-                      {p.seller_phone && <span>📞 {p.seller_phone}</span>}
-                    </div>
-                    <div className="space-y-2">
-                      {p.items.map((item, idx) => (
-                        <div key={idx} className="flex items-start justify-between py-2.5 border-b border-slate-50 last:border-0">
-                          <div className="flex items-center gap-3">
-                            <span className="text-xl">{item.type === "phone" ? (item.data.brand === "Apple" ? "🍎" : "🤖") : item.data.emoji}</span>
-                            <div>
-                              {item.type === "phone" ? (
-                                <>
-                                  <p className="text-sm font-bold text-slate-800">{item.data.brand} {item.data.model}</p>
-                                  <p className="text-[10px] text-slate-400">{item.data.storage} • {item.data.color} • {item.data.condition}</p>
-                                  <p className="text-[10px] text-slate-400 font-mono">IMEI: {item.data.imei}</p>
-                                  <p className="text-[10px] text-slate-400">Warranty: {item.data.warranty}</p>
-                                </>
-                              ) : (
-                                <>
-                                  <p className="text-sm font-bold text-slate-800">{item.data.name}</p>
-                                  <p className="text-[10px] text-slate-400">{item.data.category} • SKU: {item.data.sku} • Qty: {item.data.stock}</p>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          <p className="font-black text-slate-900 text-sm shrink-0 mt-1">
-                            {formatLKR(item.type === "phone" ? item.data.cost : item.data.cost * item.data.stock)}
-                          </p>
+                </div>
+
+                <div className="relative flex items-center justify-between py-3 border-y border-dashed border-slate-200 mb-4">
+                  <div className="flex items-center gap-4">
+                    <div className="flex -space-x-2">
+                      {p.items.slice(0, 3).map((item, i) => (
+                        <div key={i} className="w-8 h-8 rounded-full bg-white border-2 border-slate-50 flex items-center justify-center text-sm shadow-sm">
+                          {item.type === "phone" ? (item.data.brand === "Apple" ? "🍎" : "🤖") : item.data.emoji}
                         </div>
                       ))}
+                      {p.items.length > 3 && (
+                        <div className="w-8 h-8 rounded-full bg-slate-100 border-2 border-slate-50 flex items-center justify-center text-[10px] font-black text-slate-400 shadow-sm">
+                          +{p.items.length - 3}
+                        </div>
+                      )}
                     </div>
-                    <div className="flex justify-between items-center mt-3 pt-3 border-t border-dashed border-slate-200">
-                      <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Total</span>
-                      <span className="font-black text-[#f36c21] text-xl">{formatLKR(p.total)}</span>
-                    </div>
-                    <div className="mt-3 flex justify-end">
-                      <Button size="sm" onClick={() => setCompletedPurchase(p)} variant="outline" className="gap-1.5 text-xs">
-                        <Printer className="w-3.5 h-3.5" /> Print Invoice
+                    <p className="text-xs font-bold text-slate-500">{p.items.length} Product{p.items.length !== 1 ? "s" : ""}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setExpandedId(expandedId === p.id ? null : p.id)}
+                    className="h-8 px-2 text-[#f36c21] hover:text-orange-600 hover:bg-orange-50 rounded-xl gap-1 text-[10px] font-black uppercase tracking-widest"
+                  >
+                    Details {expandedId === p.id ? <ChevronUp className="w-3" /> : <ChevronDown className="w-3" />}
+                  </Button>
+                </div>
+
+                {expandedId === p.id && (
+                  <div className="relative space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                    {p.items.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-white border border-slate-50 rounded-2xl">
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl">{item.type === "phone" ? (item.data.brand === "Apple" ? "🍎" : "🤖") : item.data.emoji}</span>
+                          <div>
+                            <p className="text-xs font-black text-slate-800">{item.type === "phone" ? `${item.data.brand} ${item.data.model}` : item.data.name}</p>
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{item.type === "phone" ? `IMEI: ${item.data.imei.slice(-6)}` : `Qty: ${item.data.stock}`}</p>
+                          </div>
+                        </div>
+                        <p className="text-xs font-black text-slate-900">{formatLKR(item.type === "phone" ? item.data.cost : item.data.cost * item.data.stock)}</p>
+                      </div>
+                    ))}
+                    <div className="flex justify-end gap-2 mt-4 pt-2">
+                      <Button size="sm" onClick={() => setCompletedPurchase(p)} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-9 px-4 gap-2 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100">
+                        <Printer className="w-3.5 h-3.5" /> Re-print Invoice
                       </Button>
                     </div>
                   </div>
@@ -260,8 +265,9 @@ const PurchaseFlowDialog = ({ open, sellers, onClose, onComplete, onAddSellerReq
   open: boolean; sellers: Seller[]; onClose: () => void;
   onComplete: (p: Purchase) => void; onAddSellerRequest: () => void;
 }) => {
-  const [sellerName, setSellerName] = useState(sellers[0]?.name || "");
-  const [sellerPhone, setSellerPhone] = useState(sellers[0]?.phone || "");
+  const [sellerName, setSellerName] = useState("");
+  const [sellerPhone, setSellerPhone] = useState("");
+  const [comboOpen, setComboOpen] = useState(false);
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [addTab, setAddTab] = useState<"phone" | "accessory">("phone");
   const [view, setView] = useState<"add" | "items">("add");
@@ -307,25 +313,87 @@ const PurchaseFlowDialog = ({ open, sellers, onClose, onComplete, onAddSellerReq
     setSaving(true);
     try {
       const invoiceNo = `PUR-${Date.now().toString().slice(-6)}`;
-      const phones = items.filter(i => i.type === "phone").map(i => { const p = (i as any).data as Phone; return { brand: p.brand, model: p.model, imei: p.imei, price: p.price, cost: p.cost, warranty: p.warranty, color: p.color, storage: p.storage, condition: p.condition, status: p.status, category: p.category, seller_name: sellerName }; });
-      const accessories = items.filter(i => i.type === "accessory").map(i => { const a = (i as any).data as Accessory; return { name: a.name, sku: a.sku, category: a.category, price: a.price, cost: a.cost, stock: a.stock, low_stock_threshold: a.lowStockThreshold, emoji: a.emoji, seller_name: sellerName }; });
-      if (phones.length > 0) { const { error } = await supabase.from("phones").insert(phones); if (error) throw error; }
-      if (accessories.length > 0) { const { error } = await supabase.from("accessories").insert(accessories); if (error) throw error; }
+      
+      // 1. Process Phones (always new rows)
+      const phones = items.filter(i => i.type === "phone").map(i => { 
+        const p = (i as any).data as Phone; 
+        return { 
+          brand: p.brand, model: p.model, imei: p.imei, price: p.price, cost: p.cost, 
+          warranty: p.warranty, color: p.color, storage: p.storage, condition: p.condition, 
+          status: p.status, category: p.category, seller_name: sellerName 
+        }; 
+      });
+      if (phones.length > 0) { 
+        const { error } = await supabase.from("phones").insert(phones); 
+        if (error) throw error; 
+      }
 
-      const purchase: Purchase = { id: crypto.randomUUID(), invoice_no: invoiceNo, seller_name: sellerName, seller_phone: sellerPhone, date: new Date().toISOString(), total: totalCost, items };
-      try {
-        await supabase.from("purchases").insert([{ ...purchase, items: JSON.stringify(items) }]);
-      } catch (e) { console.warn("purchases table missing — run SQL to create it"); }
+      // 2. Process Accessories (smart update or insert)
+      const purchaseAccs = items.filter(i => i.type === "accessory").map(i => (i as any).data as Accessory);
+      for (const a of purchaseAccs) {
+        // Try to find existing accessory by name and SKU
+        const { data: existing } = await supabase
+          .from("accessories")
+          .select("*")
+          .eq("name", a.name)
+          .eq("sku", a.sku)
+          .maybeSingle();
 
+        if (existing) {
+          // Update stock of existing
+          const { error } = await supabase
+            .from("accessories")
+            .update({ stock: existing.stock + a.stock, cost: a.cost }) // Update cost to latest purchase price
+            .eq("id", existing.id);
+          if (error) throw error;
+        } else {
+          // Insert as new
+          const { error } = await supabase.from("accessories").insert([{
+            name: a.name, sku: a.sku, category: a.category, price: a.price, cost: a.cost, 
+            stock: a.stock, low_stock_threshold: a.lowStockThreshold, emoji: a.emoji, 
+            seller_name: sellerName
+          }]);
+          if (error) throw error;
+        }
+      }
+
+      // 3. Save Purchase record
+      const purchase: Purchase = { 
+        id: crypto.randomUUID(), invoice_no: invoiceNo, seller_name: sellerName, 
+        seller_phone: sellerPhone, date: new Date().toISOString(), total: totalCost, items 
+      };
+      
+      const { error: purError } = await supabase.from("purchases").insert([{ 
+        id: purchase.id,
+        invoice_no: purchase.invoice_no,
+        seller_name: purchase.seller_name,
+        seller_phone: purchase.seller_phone,
+        date: purchase.date,
+        total: purchase.total,
+        items: JSON.stringify(items) 
+      }]);
+      if (purError) console.warn("Purchases table update failed", purError);
+
+      // 4. Update Cache
       const { data: pData } = await supabase.from("phones").select("*");
       const { data: aData } = await supabase.from("accessories").select("*");
-      if (pData) offlineSync.cacheInventory({ phones: pData.map(p => ({ ...p, addedDate: p.added_date })), accessories: aData?.map(a => ({ ...a, lowStockThreshold: a.low_stock_threshold })) || [] });
+      if (pData) offlineSync.cacheInventory({ 
+        phones: pData.map(p => ({ ...p, addedDate: p.added_date })), 
+        accessories: aData?.map(a => ({ ...a, lowStockThreshold: a.low_stock_threshold })) || [] 
+      });
 
-      setItems([]); setPhone({ id: "", brand: "", model: "", imei: "", price: 0, cost: 0, warranty: "6 months", color: "", storage: "128GB", condition: "New", status: "In Stock", addedDate: new Date().toISOString(), category: "iPhone" });
-      toast.success("Purchase saved!");
+      setItems([]); 
+      setPhone({ id: "", brand: "", model: "", imei: "", price: 0, cost: 0, warranty: "6 months", color: "", storage: "128GB", condition: "New", status: "In Stock", addedDate: new Date().toISOString(), category: "iPhone" });
+      setAcc({ id: "", name: "", sku: "", category: "Cases", price: 0, cost: 0, stock: 1, lowStockThreshold: 5, emoji: "📦" });
+      setSellerName("");
+      setSellerPhone("");
+      toast.success("Purchase completed and stock updated!");
       onComplete(purchase);
-    } catch (e: any) { toast.error("Error: " + e.message); }
-    finally { setSaving(false); }
+    } catch (e: any) { 
+      toast.error("Error: " + e.message); 
+    } finally { 
+      setSaving(false); 
+    }
   };
 
   if (!open) return null;
@@ -347,15 +415,50 @@ const PurchaseFlowDialog = ({ open, sellers, onClose, onComplete, onAddSellerReq
           <div className="bg-slate-50 rounded-2xl p-4 space-y-2">
             <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Select Seller</label>
             <div className="flex gap-2">
-              <select
-                value={sellerName}
-                onChange={e => { const s = sellers.find(x => x.name === e.target.value); setSellerName(e.target.value); setSellerPhone(s?.phone || ""); }}
-                className="flex-1 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:border-[#f36c21] focus:ring-2 focus:ring-orange-500/20"
-              >
-                {sellers.length === 0 ? <option value="">No sellers — add one first</option>
-                  : sellers.map(s => <option key={s.id} value={s.name}>{s.name}{s.phone ? ` (${s.phone})` : ""}</option>)}
-              </select>
-              <button onClick={() => { onClose(); onAddSellerRequest(); }} className="px-3 py-2.5 bg-white border border-dashed border-orange-300 text-[#f36c21] rounded-xl text-xs font-black hover:bg-orange-50 transition-all flex items-center gap-1">
+              <Popover open={comboOpen} onOpenChange={setComboOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={comboOpen}
+                    className="flex-1 justify-between bg-white border-slate-200 rounded-xl h-11 px-3 text-sm font-bold text-slate-700 hover:bg-white"
+                  >
+                    {sellerName ? sellers.find((s) => s.name === sellerName)?.name : "Select seller..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search seller..." className="h-9" />
+                    <CommandList>
+                      <CommandEmpty>No seller found.</CommandEmpty>
+                      <CommandGroup>
+                        {sellers.map((s) => (
+                          <CommandItem
+                            key={s.id}
+                            value={s.name}
+                            onSelect={(currentValue) => {
+                              setSellerName(currentValue === sellerName ? "" : currentValue);
+                              setSellerPhone(s.phone || "");
+                              setComboOpen(false);
+                            }}
+                            className="text-sm font-bold"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                sellerName === s.name ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {s.name} {s.phone && <span className="text-[10px] text-slate-400 ml-1 font-normal">({s.phone})</span>}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              <button onClick={() => { onClose(); onAddSellerRequest(); }} className="px-3 py-2.5 bg-white border border-dashed border-orange-300 text-[#f36c21] rounded-xl text-xs font-black hover:bg-orange-50 transition-all flex items-center gap-1 shrink-0">
                 <UserPlus className="w-3.5 h-3.5" /> New
               </button>
             </div>

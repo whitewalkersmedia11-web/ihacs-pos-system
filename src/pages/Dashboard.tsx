@@ -26,6 +26,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [sales, setSales] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
+  const [purchases, setPurchases] = useState<any[]>([]);
   const [accessories, setAccessories] = useState<Accessory[]>([]);
   const [phones, setPhones] = useState<Phone[]>([]);
 
@@ -42,11 +43,13 @@ const Dashboard = () => {
     try {
       const { data: salesData } = await supabase.from("sales").select("*").order("date", { ascending: false });
       const { data: expensesData } = await supabase.from("expenses").select("*").order("date", { ascending: false });
+      const { data: purchasesData } = await supabase.from("purchases").select("*").order("date", { ascending: false });
       const { data: accData } = await supabase.from("accessories").select("*");
       const { data: phoneData } = await supabase.from("phones").select("*").eq("status", "In Stock");
 
       setSales(salesData || []);
       setExpenses(expensesData || []);
+      setPurchases(purchasesData || []);
       setAccessories(accData || []);
       setPhones(phoneData || []);
     } catch (error: any) {
@@ -56,7 +59,7 @@ const Dashboard = () => {
     }
   };
 
-  const metrics = useMemo(() => {
+    const metrics = useMemo(() => {
     const todaySales = sales.filter((s) => s.date.startsWith(todayStr));
     const todayRevenue = todaySales.reduce((sum, s) => sum + Number(s.total), 0);
     
@@ -69,8 +72,14 @@ const Dashboard = () => {
     
     const monthExpenses = expenses.filter((e) => e.date.startsWith(thisMonthStr));
     const totalExpenses = monthExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+
+    const monthPurchases = purchases.filter((p) => p.date.startsWith(thisMonthStr));
+    const totalPurchases = monthPurchases.reduce((sum, p) => sum + Number(p.total), 0);
     
     const netProfit = grossProfit - totalExpenses;
+
+    const stockValue = accessories.reduce((s, a) => s + (Number(a.cost) * Number(a.stock)), 0) + 
+                     phones.reduce((s, p) => s + Number(p.cost), 0);
 
     return { 
       todayRevenue, 
@@ -78,11 +87,13 @@ const Dashboard = () => {
       totalSalesCount: monthSalesCount, 
       monthRevenue, 
       totalExpenses, 
+      totalPurchases,
       netProfit, 
+      stockValue,
       todaySalesCount: todaySales.length,
       weekTotal: 0
     };
-  }, [sales, expenses, todayStr, thisMonthStr]);
+  }, [sales, expenses, purchases, accessories, phones, todayStr, thisMonthStr]);
 
   const monthlySalesData = useMemo(() => {
     const months = ["Jan", "Feb", "Mar", "Apr"];
@@ -201,18 +212,18 @@ const Dashboard = () => {
       {/* Secondary metrics */}
       <div className="grid grid-cols-3 gap-2">
         <div className="bg-card border border-border rounded-xl p-2.5">
-          <p className="text-[10px] text-muted-foreground">Today's Revenue</p>
-          <p className="text-sm font-bold text-foreground">{formatLKR(metrics.todayRevenue)}</p>
-          <p className="text-[9px] text-muted-foreground">{metrics.todaySalesCount} sales</p>
+          <p className="text-[10px] text-muted-foreground">Monthly Purchases</p>
+          <p className="text-sm font-bold text-destructive">{formatLKR(metrics.totalPurchases)}</p>
+          <p className="text-[9px] text-muted-foreground">Stock Investment</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-2.5">
+          <p className="text-[10px] text-muted-foreground">Current Stock Value</p>
+          <p className="text-sm font-bold text-[#f36c21]">{formatLKR(metrics.stockValue)}</p>
+          <p className="text-[9px] text-muted-foreground">Inventory Assets</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-2.5">
           <p className="text-[10px] text-muted-foreground">Monthly Sales</p>
           <p className="text-sm font-bold text-foreground">{metrics.totalSalesCount}</p>
-          <p className="text-[9px] text-muted-foreground">transactions</p>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-2.5">
-          <p className="text-[10px] text-muted-foreground">Weekly Revenue</p>
-          <p className="text-sm font-bold text-foreground">{formatLKR(metrics.weekTotal)}</p>
         </div>
       </div>
 

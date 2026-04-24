@@ -7,6 +7,10 @@ import { Phone, Accessory, Seller } from "@/data/types";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { offlineSync } from "@/lib/offlineSync";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+import { Check, ChevronsUpDown } from "lucide-react";
 
 const formatLKR = (v: number) => `Rs. ${v.toLocaleString("en-LK")}`;
 
@@ -446,7 +450,12 @@ const PhoneDialog = ({ phone, isNew, sellers, onSave, onClose }: {
           <Field label="Cost (LKR)" value={String(form.cost)} onChange={(v) => update("cost", Number(v))} type="number" />
           <Field label="Color" value={form.color} onChange={(v) => update("color", v)} />
           <Field label="Storage" value={form.storage} onChange={(v) => update("storage", v)} />
-          <SelectField label="Seller" value={form.seller_name || ""} options={["", ...sellers.map(s => s.name)]} onChange={(v) => update("seller_name", v)} />
+          
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-muted-foreground">Seller</label>
+            <SellerSelect sellers={sellers} value={form.seller_name || ""} onChange={(v) => update("seller_name", v)} />
+          </div>
+
           <SelectField label="Warranty" value={form.warranty} options={warrantyOptions} onChange={(v) => update("warranty", v)} />
           <SelectField label="Condition" value={form.condition} options={conditionOptions} onChange={(v) => update("condition", v)} />
           <SelectField label="Status" value={form.status} options={statusOptions} onChange={(v) => update("status", v)} className="col-span-2" />
@@ -486,7 +495,11 @@ const AccDialog = ({ acc, isNew, sellers, onSave, onClose }: {
           <Field label="Cost (LKR)" value={String(form.cost)} onChange={(v) => update("cost", Number(v))} type="number" />
           <Field label="Stock" value={String(form.stock)} onChange={(v) => update("stock", Number(v))} type="number" />
           <Field label="Low Stock Threshold" value={String(form.lowStockThreshold)} onChange={(v) => update("lowStockThreshold", Number(v))} type="number" />
-          <SelectField label="Seller" value={form.seller_name || ""} options={["", ...sellers.map(s => s.name)]} onChange={(v) => update("seller_name", v)} className="col-span-2" />
+          
+          <div className="flex flex-col gap-1 col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Seller</label>
+            <SellerSelect sellers={sellers} value={form.seller_name || ""} onChange={(v) => update("seller_name", v)} />
+          </div>
         </div>
         <div className="flex gap-2 justify-end">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
@@ -527,5 +540,44 @@ const SelectField = ({ label, value, options, onChange, className = "" }: {
     </select>
   </div>
 );
+
+const SellerSelect = ({ sellers, value, onChange }: { sellers: Seller[]; value: string; onChange: (v: string) => void }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between bg-background border-border rounded-lg h-9 px-3 text-sm font-normal text-foreground">
+          {value ? sellers.find((s) => s.name === value)?.name : "Select seller..."}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[300px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search seller..." className="h-9" />
+          <CommandList>
+            <CommandEmpty>No seller found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem value="" onSelect={() => { onChange(""); setOpen(false); }} className="text-sm">
+                <Check className={cn("mr-2 h-4 w-4", value === "" ? "opacity-100" : "opacity-0")} />
+                None
+              </CommandItem>
+              {sellers.map((s) => (
+                <CommandItem
+                  key={s.id}
+                  value={s.name}
+                  onSelect={(cur) => { onChange(cur); setOpen(false); }}
+                  className="text-sm"
+                >
+                  <Check className={cn("mr-2 h-4 w-4", value === s.name ? "opacity-100" : "opacity-0")} />
+                  {s.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 export default Inventory;
